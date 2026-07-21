@@ -194,7 +194,11 @@ def printState():
     x_ft = state_x * 3.28
     z_ft = state_z * 3.28
     pitch_deg = state_gamma / math.pi * 180.0
-    print(f'{state_t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}')
+    #print(f'{state_t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}')
+
+    totalEnergy_height = state_z + state_v ** 2 / (2 * g)
+    totalEnergy_height_ft = totalEnergy_height * 3.28
+    print(f'{x_ft:.0f}\t{totalEnergy_height_ft:.0f}')
 
 if __name__ == '__main__':
     initializeState()
