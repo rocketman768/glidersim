@@ -1,4 +1,24 @@
 #!/usr/bin/env python3
+"""
+2DOF Point-Mass Glider Thermal Trajectory & Energy Model
+
+Simulates longitudinal flight dynamics and total specific energy height (E_h)
+evolution for an 18m glider traversing a spatial updraft (thermal).
+
+Key Physical & Dynamic Features:
+  - Integrated State: [x, z, v, gamma, n] resolved using 4th-order Runge-Kutta (RK4).
+  - Updraft Profile: Continuous Allen thermal model with finite core and sink ring.
+  - Shear Coupling: Coupled spatial gradient (dw/dx) terms in v_dot and gamma_dot
+    to capture momentum and pitch-rate interactions in vertical wind gradients.
+  - Actuator Dynamics: First-order low-pass lag (tau_n) modeling variometer, pilot,
+    and airframe load factor response delays.
+  - Control Law: Closed-loop PD speed-to-load-factor controller with n-clamping.
+  - Drag Model: Empirical profile drag fit (Cd0) + Oswald induced drag (Cdi).
+
+Output:
+  Prints horizontal distance (x) versus Total Specific Energy Height (z + v^2 / 2g)
+  to evaluate energy extraction efficiency across varied pull-up profiles.
+"""
 
 import math
 
