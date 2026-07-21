@@ -12,6 +12,7 @@ S = 10.0 # m^2 (wing area)
 m = 500.0 # kg (mass)
 b = 18.0 # m (span)
 AR = b * b / S # (aspect ratio)
+tau_n = 0.5 # s (lag time constant for changes in load factor)
 
 # State vars
 state_t = None # s
@@ -19,9 +20,7 @@ state_x = None # m
 state_z = None # m
 state_v = None # m/s
 state_gamma = None # radians (note: initialize this to proper steady-state for x/z/v)
-
-# Control inputs
-n = 1.0 # Gs of acceleration
+state_n = 1.0 # Gs of acceleration. Control input.
 
 # Simulation constants
 dt = 0.1 # s
@@ -34,12 +33,13 @@ def steadyStateGamma(v, n_cmd):
     return math.asin(-drag / (m * g))
 
 def initializeState():
-    global state_t, state_x, state_z, state_v, state_gamma
+    global state_t, state_x, state_z, state_v, state_gamma, state_n
     state_t = 0.0 # s
     state_x = 0.0 # m
     state_z = 0.0 # m
     state_v = 49.0 # m/s
-    state_gamma = steadyStateGamma(state_v, 1.0)
+    state_n = 1.0 # m/s
+    state_gamma = steadyStateGamma(state_v, state_n)
 
 def w_box(x):
     thermalWidth = 300 # m
@@ -107,9 +107,9 @@ def cd0(cl):
 def cdi(cl):
     return cl * cl / (math.pi * AR * eOswald)
 
-def derivatives(x, z, v, gamma, n0):
-    """Calculates [dx/dt, dz/dt, dv/dt, dgamma/dt] for a given state."""
-    cl = commandedLiftCoefficient(n0, v)
+def derivatives(x, z, v, gamma, n, n_cmd):
+    """Calculates [dx/dt, dz/dt, dv/dt, dgamma/dt, dn/dt] for a given state."""
+    cl = commandedLiftCoefficient(n, v)
     cd = cd0(cl) + cdi(cl)
     drag = q(v) * S * cd
 
@@ -121,9 +121,12 @@ def derivatives(x, z, v, gamma, n0):
 
     # Coupled state derivatives
     dv_dt = -(drag / m) - g * math.sin(gamma) - v * shear * math.cos(gamma) * math.sin(gamma)
-    dgamma_dt = (g / v) * (n0 - math.cos(gamma)) - shear * (math.cos(gamma) ** 2)
+    dgamma_dt = (g / v) * (n - math.cos(gamma)) - shear * (math.cos(gamma) ** 2)
     
-    return dx_dt, dz_dt, dv_dt, dgamma_dt
+    # Dynamic lag derivative
+    dn_dt = (n_cmd - n) / tau_n
+
+    return dx_dt, dz_dt, dv_dt, dgamma_dt, dn_dt
 
 def controlUpdate():
     # 0.2 per 2 m/s
@@ -133,8 +136,8 @@ def controlUpdate():
     n_max = 1.2
     n_min = 0.8
 
-    # We need the velocity derivative
-    _, _, v_dot, _ = derivatives(state_x, state_z, state_v, state_gamma, n)
+    # We need the velocity derivative. (pass dummy 0.0 for n_cmd since dv/dt doesn't use it)
+    _, _, v_dot, _, _ = derivatives(state_x, state_z, state_v, state_gamma, state_n, 0.0)
 
     target_v = 28.0 if w(state_x) > 0 else 49.0 
     # Proportional term   
@@ -144,43 +147,45 @@ def controlUpdate():
     # Clamp
     return max(n_min, min(n_max, n_cmd))
 
-
 def advanceState():
-    global n, state_t, state_x, state_z, state_v, state_gamma
+    global state_t, state_x, state_z, state_v, state_gamma, state_n
     # RK4 update
 
     # 1. Update control input based on current state
-    n = controlUpdate()
+    n_cmd = controlUpdate()
     
     # 2. RK4 Intermediate steps
     # k1
-    k1_x, k1_z, k1_v, k1_g = derivatives(state_x, state_z, state_v, state_gamma, n)
+    k1_x, k1_z, k1_v, k1_g, k1_n = derivatives(state_x, state_z, state_v, state_gamma, state_n, n_cmd)
     
     # k2
-    k2_x, k2_z, k2_v, k2_g = derivatives(
+    k2_x, k2_z, k2_v, k2_g, k2_n = derivatives(
         state_x + 0.5 * dt * k1_x,
         state_z + 0.5 * dt * k1_z,
         state_v + 0.5 * dt * k1_v,
         state_gamma + 0.5 * dt * k1_g,
-        n
+        state_n + 0.5 * dt * k1_n,
+        n_cmd
     )
     
     # k3
-    k3_x, k3_z, k3_v, k3_g = derivatives(
+    k3_x, k3_z, k3_v, k3_g, k3_n = derivatives(
         state_x + 0.5 * dt * k2_x,
         state_z + 0.5 * dt * k2_z,
         state_v + 0.5 * dt * k2_v,
         state_gamma + 0.5 * dt * k2_g,
-        n
+        state_n + 0.5 * dt * k2_n,
+        n_cmd
     )
     
     # k4
-    k4_x, k4_z, k4_v, k4_g = derivatives(
+    k4_x, k4_z, k4_v, k4_g, k4_n = derivatives(
         state_x + dt * k3_x,
         state_z + dt * k3_z,
         state_v + dt * k3_v,
         state_gamma + dt * k3_g,
-        n
+        state_n + dt * k3_n,
+        n_cmd
     )
     
     # 3. Weighted state updates
@@ -188,6 +193,7 @@ def advanceState():
     state_z += (dt / 6.0) * (k1_z + 2.0 * k2_z + 2.0 * k3_z + k4_z)
     state_v += (dt / 6.0) * (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v)
     state_gamma += (dt / 6.0) * (k1_g + 2.0 * k2_g + 2.0 * k3_g + k4_g)
+    state_n += (dt / 6.0) * (k1_n + 2.0 * k2_n + 2.0 * k3_n + k4_n)
     
     state_t += dt
 
