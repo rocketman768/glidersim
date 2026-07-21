@@ -21,6 +21,7 @@ Output:
 """
 
 import math
+from dataclasses import dataclass
 
 # Physical constants
 rho = 1.22 # kg/m^2
@@ -44,6 +45,42 @@ state_n = 1.0 # Gs of acceleration. Control input.
 
 # Simulation constants
 dt = 0.1 # s
+
+# Pilot profiles
+@dataclass
+class PilotProfile:
+    name: str
+    kp: float      # Speed error gain (g's per m/s speed error)
+    kd: float      # Acceleration damping gain (g's per m/s^2 acceleration)
+    n_max: float   # Upper load factor limit (g)
+    n_min: float   # Lower load factor limit (g)
+
+PILOT_SMOOTH = PilotProfile(
+    name="SmoothOperator (1.2g)",
+    kp=0.10,
+    kd=0.38,
+    n_max=1.2,
+    n_min=0.8,
+)
+
+PILOT_MODERATE = PilotProfile(
+    name="BasicBob (1.5g)",
+    kp=0.10,
+    kd=0.38,
+    n_max=1.5,
+    n_min=0.7,
+)
+
+PILOT_AGGRESSIVE = PilotProfile(
+    name="Aggro (2.0g)",
+    kp=0.10,
+    kd=0.38,
+    n_max=2.0,
+    n_min=0.4,
+)
+
+# Pick the pilot!
+pilot = PILOT_AGGRESSIVE
 
 # Pitch angle for given speed and loading
 def steadyStateGamma(v, n_cmd):
@@ -150,11 +187,11 @@ def derivatives(x, z, v, gamma, n, n_cmd):
 
 def controlUpdate():
     # 0.2 per 2 m/s
-    kp = 0.2 / 2.0
+    kp = pilot.kp
     # Tune to prevent overshoot
-    kd = 0.38
-    n_max = 1.2
-    n_min = 0.8
+    kd = pilot.kd
+    n_max = pilot.n_max
+    n_min = pilot.n_min
 
     # We need the velocity derivative. (pass dummy 0.0 for n_cmd since dv/dt doesn't use it)
     _, _, v_dot, _, _ = derivatives(state_x, state_z, state_v, state_gamma, state_n, 0.0)
@@ -222,7 +259,7 @@ def printState():
     x_ft = state_x * 3.28
     z_ft = state_z * 3.28
     pitch_deg = state_gamma / math.pi * 180.0
-    #print(f'{state_t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}')
+    #print(f'{state_t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}\t{state_n:.1f}')
 
     totalEnergy_height = state_z + state_v ** 2 / (2 * g)
     totalEnergy_height_ft = totalEnergy_height * 3.28
