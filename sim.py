@@ -41,14 +41,31 @@ def initializeState():
     state_v = 49.0 # m/s
     state_gamma = steadyStateGamma(state_v, 1.0)
 
-# Air motion model in vertical m/s
-def w(x):
+def w_box(x):
     thermalWidth = 300 # m
     thermalVelocity = 2.5 # m/s
     if x < 0 or x > thermalWidth:
         return 0.0
     else:
         return thermalVelocity
+
+def w_allen(x):
+    thermalWidth = 300.0 # m
+    thermalVelocity = 2.5 # m/s
+
+    x_c = thermalWidth / 2       # Center of thermal
+    r0 = thermalWidth / 3        # Radius of zero-lift crossover
+    w_peak = thermalVelocity     # Peak core lift (m/s)
+    
+    r = abs(x - x_c)
+    norm_r = r / r0
+    
+    # Allen formula
+    return w_peak * (1.0 - norm_r**2) * math.exp(-(norm_r**2))
+
+# Air motion model in vertical m/s
+def w(x):
+    return w_allen(x)
 
 def q(v):
     return 0.5 * rho * v * v
