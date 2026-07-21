@@ -67,6 +67,11 @@ def w_allen(x):
 def w(x):
     return w_allen(x)
 
+def dw_dx(x):
+    """Central difference derivative of w(x)."""
+    dx_step = 0.01
+    return (w(x + dx_step) - w(x - dx_step)) / (2.0 * dx_step)
+
 def q(v):
     return 0.5 * rho * v * v
 
@@ -107,11 +112,16 @@ def derivatives(x, z, v, gamma, n0):
     cl = commandedLiftCoefficient(n0, v)
     cd = cd0(cl) + cdi(cl)
     drag = q(v) * S * cd
+
+    # Wind shear spatial gradient
+    shear = dw_dx(x)
     
     dx_dt = v * math.cos(gamma)
     dz_dt = v * math.sin(gamma) + w(x)
-    dv_dt = - (drag / m) - g * math.sin(gamma)
-    dgamma_dt = (g / v) * (n0 - math.cos(gamma))
+
+    # Coupled state derivatives
+    dv_dt = -(drag / m) - g * math.sin(gamma) - v * shear * math.cos(gamma) * math.sin(gamma)
+    dgamma_dt = (g / v) * (n0 - math.cos(gamma)) - shear * (math.cos(gamma) ** 2)
     
     return dx_dt, dz_dt, dv_dt, dgamma_dt
 
