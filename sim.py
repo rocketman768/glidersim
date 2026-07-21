@@ -44,7 +44,7 @@ def initializeState():
 # Air motion model in vertical m/s
 def w(x):
     thermalWidth = 300 # m
-    thermalVelocity = 0#2.5 # m/s
+    thermalVelocity = 2.5 # m/s
     if x < 0 or x > thermalWidth:
         return 0.0
     else:
@@ -85,21 +85,6 @@ def cd0(cl):
 def cdi(cl):
     return cl * cl / (math.pi * AR * eOswald)
 
-def controlUpdate():
-    # 0.2 per 2 m/s
-    kp = 0.2 / 2.0
-    n_max = 1.2
-    n_min = 0.8
-
-    if w(state_x) > 0:
-        # Pull up in the thermal
-        n_cmd = 1.0 + kp * (state_v - 28.0)
-    else:
-        # Accelerate to cruise speed
-        n_cmd = 1.0 + kp * (state_v - 49.0)
-    
-    return max(n_min, min(n_max, n_cmd))
-
 def derivatives(x, z, v, gamma, n0):
     """Calculates [dx/dt, dz/dt, dv/dt, dgamma/dt] for a given state."""
     cl = commandedLiftCoefficient(n0, v)
@@ -112,6 +97,24 @@ def derivatives(x, z, v, gamma, n0):
     dgamma_dt = (g / v) * (n0 - math.cos(gamma))
     
     return dx_dt, dz_dt, dv_dt, dgamma_dt
+
+def controlUpdate():
+    # 0.2 per 2 m/s
+    kp = 0.2 / 2.0
+    # Tune to prevent overshoot
+    kd = 0.38
+    n_max = 1.2
+    n_min = 0.8
+
+    # We need the velocity derivative
+    _, _, v_dot, _ = derivatives(state_x, state_z, state_v, state_gamma, n)
+
+    target_v = 28.0 if w(state_x) > 0 else 49.0    
+    n_cmd = 1.0 + kp * (state_v - target_v)
+    # Damping directly on the velocity derivative requires a lot of aero calcs
+    n_cmd += kd * v_dot
+    
+    return max(n_min, min(n_max, n_cmd))
 
 def advanceState():
     global n, state_t, state_x, state_z, state_v, state_gamma
@@ -168,6 +171,6 @@ def printState():
 
 if __name__ == '__main__':
     initializeState()
-    while state_t <= 10.0:
+    while state_t < 30.0:
         printState()
         advanceState()
