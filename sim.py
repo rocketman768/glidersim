@@ -136,12 +136,14 @@ def controlUpdate():
     # We need the velocity derivative
     _, _, v_dot, _ = derivatives(state_x, state_z, state_v, state_gamma, n)
 
-    target_v = 28.0 if w(state_x) > 0 else 49.0    
+    target_v = 28.0 if w(state_x) > 0 else 49.0 
+    # Proportional term   
     n_cmd = 1.0 + kp * (state_v - target_v)
-    # Damping directly on the velocity derivative requires a lot of aero calcs
+    # derivative term
     n_cmd += kd * v_dot
-    
+    # Clamp
     return max(n_min, min(n_max, n_cmd))
+
 
 def advanceState():
     global n, state_t, state_x, state_z, state_v, state_gamma
