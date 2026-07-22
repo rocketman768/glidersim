@@ -10,7 +10,8 @@ def f(x):
         targetDolphin_v=x[2],
         n_max=x[3],
         n_min=x[4],
-        x_lookahead=50,
+        x_lookaheadPull=50,
+        x_lookaheadPush=50,
     )
     data = sim.simulate(30.0, pilot)
     return data['E_h_detrended'][-1] - data['E_h_detrended'][0]

@@ -60,7 +60,8 @@ class PilotProfile:
     targetDolphin_v: float # Target dolphin speed (m/s)
     n_max: float   # Upper load factor limit (g)
     n_min: float   # Lower load factor limit (g)
-    x_lookahead: float # Pilots can anticipate this far into the future (m)
+    x_lookaheadPull: float # Pilots can anticipate this far into the future for pulls (m)
+    x_lookaheadPush: float # Pilots can anticipate this far into the future for pushes (m)
 
 PILOT_BLOCK = PilotProfile(
     name="Block STF",
@@ -69,7 +70,8 @@ PILOT_BLOCK = PilotProfile(
     targetDolphin_v=targetCruise_v,
     n_max=1.2,
     n_min=0.8,
-    x_lookahead=50,
+    x_lookaheadPull=50,
+    x_lookaheadPush=50,
 )
 
 PILOT_SMOOTH = PilotProfile(
@@ -79,7 +81,8 @@ PILOT_SMOOTH = PilotProfile(
     targetDolphin_v=28.0,
     n_max=1.2,
     n_min=0.8,
-    x_lookahead=50,
+    x_lookaheadPull=50,
+    x_lookaheadPush=50,
 )
 
 PILOT_MODERATE = PilotProfile(
@@ -89,7 +92,8 @@ PILOT_MODERATE = PilotProfile(
     targetDolphin_v=28.0,
     n_max=1.5,
     n_min=0.7,
-    x_lookahead=50,
+    x_lookaheadPull=50,
+    x_lookaheadPush=50,
 )
 
 PILOT_AGGRESSIVE = PilotProfile(
@@ -99,17 +103,19 @@ PILOT_AGGRESSIVE = PilotProfile(
     targetDolphin_v=28.0,
     n_max=2.0,
     n_min=0.5,
-    x_lookahead=50,
+    x_lookaheadPull=50,
+    x_lookaheadPush=50,
 )
 
 PILOT_OPTIMIZED = PilotProfile(
     name="Maverick",
-    kp=0.06565656565656565,
-    kd=0.35555555555555557,
+    kp=0.07333333333333332,
+    kd=0.395959595959596,
     targetDolphin_v=25.0,
     n_max=1.3718181818181818,
     n_min=0.22999999999999998,
-    x_lookahead=50,
+    x_lookaheadPull=50,
+    x_lookaheadPush=50,
 )
 
 # Pick the pilot!
@@ -236,13 +242,21 @@ def controlUpdate():
     kd = pilot.kd
     n_max = pilot.n_max
     n_min = pilot.n_min
-    x_lookahead = pilot.x_lookahead
+    x_lookaheadPull = pilot.x_lookaheadPull
+    x_lookaheadPush = pilot.x_lookaheadPush
     targetDolphin_v = pilot.targetDolphin_v
 
     # We need the velocity derivative. (pass dummy 0.0 for n_cmd since dv/dt doesn't use it)
     _, _, v_dot, _, _ = derivatives(state_x, state_z, state_v, state_gamma, state_n, 0.0)
 
-    target_v = targetDolphin_v if w(state_x + x_lookahead) > 0 else targetCruise_v
+    #target_v = targetDolphin_v if w(state_x + x_lookahead) > 0 else targetCruise_v
+    target_v = targetCruise_v
+    if w(state_x + x_lookaheadPush) < 0:
+        # Pilot sees end of thermal ahead
+        target_v = targetCruise_v
+    elif w(state_x + x_lookaheadPull) > 0:
+        # Pilot sees beginning of thermal ahead
+        target_v = targetDolphin_v
 
     # Proportional term   
     n_cmd = 1.0 + kp * (state_v - target_v)

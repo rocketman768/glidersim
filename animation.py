@@ -192,7 +192,7 @@ class GliderThermalComparison(Scene):
         # ----------------------------------------------------------------------
         # Animation Execution
         # ----------------------------------------------------------------------
-        PLAYBACK_FACTOR = 1.0
+        PLAYBACK_FACTOR = 4.0
         tEnd = max(smooth['t'][-1], aggro['t'][-1])
         self.play(
             Create(path_top_smooth),
