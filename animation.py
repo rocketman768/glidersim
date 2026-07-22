@@ -9,7 +9,7 @@ class GliderThermalComparison(Scene):
     def construct(self):
         # Generate simulation datasets
         smoothPilot = sim.PILOT_OPTIMIZED
-        aggroPilot = sim.PILOT_BLOCK
+        aggroPilot = sim.PILOT_SMOOTH
         smooth = sim.simulate(30.0, smoothPilot)
         aggro = sim.simulate(30.0, aggroPilot)
 
@@ -158,19 +158,52 @@ class GliderThermalComparison(Scene):
         path_bot_smooth = VMobject(color=TEAL, stroke_width=3).set_points_smoothly(pts_bot_smooth)
         path_bot_aggro = VMobject(color=ORANGE, stroke_width=3).set_points_smoothly(pts_bot_aggro)
 
+        max_idx = len(smooth["x"]) - 1
+        n_tracker = ValueTracker(0)
+
+        # 4. Vector attached to curve tip
+        arrow = Arrow(buff=0, color=RED, stroke_width=6, tip_length=0.2, max_stroke_width_to_length_ratio=9999, max_tip_length_to_length_ratio=1)
+        def update_arrow(mob):
+            n = int(n_tracker.get_value())
+            n = min(n, max_idx)
+
+            tip_pos = path_top_smooth.get_end()
+
+            # Convert scene position back to (x, z) axis coordinates
+            x_val, z_val = ax_top.p2c(tip_pos)[:2]
+
+            # Interpolate dz corresponding to current x_val
+            #dz_val = np.interp(x_val, x, dz)
+            dz_val = 20.0 * (smooth["n"][n] - 1.0)
+
+            # Redraw arrow at tip
+            mob.become(
+                Arrow(
+                    start=tip_pos,
+                    end=ax_top.c2p(x_val, z_val + dz_val),
+                    buff=0,
+                    color=RED,
+                    stroke_width=6, tip_length=0.2, max_stroke_width_to_length_ratio=9999, max_tip_length_to_length_ratio=1
+                )
+            )
+        arrow.add_updater(update_arrow)
+        self.add(arrow)
+
         # ----------------------------------------------------------------------
         # Animation Execution
         # ----------------------------------------------------------------------
-        PLAYBACK_FACTOR = 4.0
+        PLAYBACK_FACTOR = 1.0
         tEnd = max(smooth['t'][-1], aggro['t'][-1])
         self.play(
             Create(path_top_smooth),
             Create(path_top_aggro),
             Create(path_bot_smooth),
             Create(path_bot_aggro),
+            n_tracker.animate.set_value(max_idx),
             run_time=tEnd / PLAYBACK_FACTOR,
             rate_func=linear,
         )
+        arrow.remove_updater(update_arrow)
 
         final_e_smooth = smooth["E_h_detrended"][-1] - e0
         final_e_aggro = aggro["E_h_detrended"][-1] - e0
