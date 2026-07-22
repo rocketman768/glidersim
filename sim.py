@@ -62,6 +62,8 @@ class PilotProfile:
     n_min: float   # Lower load factor limit (g)
     x_lookaheadPull: float # Pilots can anticipate this far into the future for pulls (m)
     x_lookaheadPush: float # Pilots can anticipate this far into the future for pushes (m)
+    x_cheaterPull: float = None
+    x_cheaterPush: float = None
 
 PILOT_BLOCK = PilotProfile(
     name="Block STF",
@@ -105,6 +107,19 @@ PILOT_AGGRESSIVE = PilotProfile(
     n_min=0.5,
     x_lookaheadPull=50,
     x_lookaheadPush=50,
+)
+
+PILOT_CHEATER = PilotProfile(
+    name="Cheater",
+    kp=0.11555555555555555,
+    kd=0.47676767676767673,
+    targetDolphin_v=30.333333333333332,
+    n_max=3.0,
+    n_min=0.0,
+    x_lookaheadPull=0,
+    x_lookaheadPush=0,
+    x_cheaterPull=407.57575757575756,
+    x_cheaterPush=489.8989898989899,
 )
 
 PILOT_OPTIMIZED = PilotProfile(
@@ -251,17 +266,21 @@ def controlUpdate():
 
     #target_v = targetDolphin_v if w(state_x + x_lookahead) > 0 else targetCruise_v
 
-    entering_lift = w(state_x + x_lookaheadPull) > 0
-    exiting_lift = w(state_x + x_lookaheadPush) <= 0
-    if exiting_lift and w(state_x) > 0:
-        # We are currently in lift, but seeing the exit ahead. Push over early
-        target_v = targetCruise_v
-    elif entering_lift:
-        # We see lift ahead. Pull up early
-        target_v = targetDolphin_v
+    if pilot.x_cheaterPull and pilot.x_cheaterPush:
+        # Just for demo, someone who can know the exact position to push and pull for this thermal
+        target_v = targetDolphin_v if state_x > pilot.x_cheaterPull and state_x < pilot.x_cheaterPush else targetCruise_v
     else:
-        # In still air. Cruise
-        target_v = targetCruise_v
+        entering_lift = w(state_x + x_lookaheadPull) > 0
+        exiting_lift = w(state_x + x_lookaheadPush) <= 0
+        if exiting_lift and w(state_x) > 0:
+            # We are currently in lift, but seeing the exit ahead. Push over early
+            target_v = targetCruise_v
+        elif entering_lift:
+            # We see lift ahead. Pull up early
+            target_v = targetDolphin_v
+        else:
+            # In still air. Cruise
+            target_v = targetCruise_v
 
     # Proportional term   
     n_cmd = 1.0 + kp * (state_v - target_v)

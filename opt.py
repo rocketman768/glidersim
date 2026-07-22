@@ -12,21 +12,23 @@ def f(x):
         n_min=x[4],
         x_lookaheadPull=x[5],
         x_lookaheadPush=x[6],
+        x_cheaterPull= x[7] if len(x) > 7 else None,
+        x_cheaterPush= x[8] if len(x) > 8 else None,
     )
     data = sim.simulate(30.0, pilot)
     return data['E_h_detrended'][-1] - data['E_h_detrended'][0]
 
 if __name__ == '__main__':
-    x = [0.10, 0.38, 28.0, 2.0, 0.5, 40, 0]
-    x_min = [0.01, 0.0, 25.0, 1.01, 0.0, -100.0, -100.0]
-    x_max = [0.2, 0.8, 49.0, 3.0, 0.99, 100.0, 100.0]
+    x = [0.10, 0.38, 28.0, 2.0, 0.5, 0, 0, 350, 550]
+    x_min = [0.01, 0.0, 25.0, 1.01, 0.0, -100.0, -100.0, 150, 300]
+    x_max = [0.2, 0.8, 49.0, 3.0, 0.99, 100.0, 100.0, 450, 700]
 
     n_samples = 100
     n_rounds = 10
 
     #coordsToOptimize = range(len(x))
     # Let the PID parameters be optimized at the end
-    coordsToOptimize = (2,3,4,5,6,0,1)
+    coordsToOptimize = (2,3,4,7,8,0,1)
 
     for round in range(n_rounds):
         print(f'= Round {round} ==')

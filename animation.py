@@ -8,7 +8,7 @@ class GliderThermalComparison(Scene):
 
     def construct(self):
         # Generate simulation datasets
-        smoothPilot = sim.PILOT_OPTIMIZED
+        smoothPilot = sim.PILOT_CHEATER
         aggroPilot = sim.PILOT_SMOOTH
         smooth = sim.simulate(30.0, smoothPilot)
         aggro = sim.simulate(30.0, aggroPilot)
