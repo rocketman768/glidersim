@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sim
+import math
 from manim import *
 
 class GliderThermalComparison(Scene):
@@ -44,10 +45,11 @@ class GliderThermalComparison(Scene):
         # ----------------------------------------------------------------------
         # Secondary Right Y-Axis & Thermal Profile w_allen(x)
         # ----------------------------------------------------------------------
-        W_SCALE = z_max / 5.0
+        W_MAX = 5.0
+        W_SCALE = z_max / W_MAX
 
         # Right Y-axis line at thermal center
-        w_center = 450
+        w_center = sim.thermalCenter
         right_axis_line = Line(
             ax_top.c2p(w_center, 0),
             ax_top.c2p(w_center, z_max),
@@ -57,7 +59,7 @@ class GliderThermalComparison(Scene):
 
         # Right Y-axis tick labels
         w_ticks = VGroup()
-        for val in range(0, 5, 1):
+        for val in range(0, int(math.ceil(W_MAX)), 1):
             z_mapped = val * W_SCALE
             tick = Line(
                 ax_top.c2p(w_center, z_mapped),
@@ -74,7 +76,7 @@ class GliderThermalComparison(Scene):
         label_top_w.next_to(right_axis_line, UP + RIGHT, buff=0.05)
 
         # Generate w(x) points
-        x_m_vals = np.linspace(0, 1200, 200)
+        x_m_vals = np.linspace(sim.thermalCenter - 2.0 * sim.thermalWidth, sim.thermalCenter + 2.0 * sim.thermalWidth, 200)
         w_m_vals = [sim.w(xm) for xm in x_m_vals]
 
         w_pts = [ax_top.c2p(xf, wf * W_SCALE) for xf, wf in zip(x_m_vals, w_m_vals)]
@@ -157,12 +159,14 @@ class GliderThermalComparison(Scene):
         # ----------------------------------------------------------------------
         # Animation Execution
         # ----------------------------------------------------------------------
+        PLAYBACK_FACTOR = 4.0
+        tEnd = max(smooth['t'][-1], aggro['t'][-1])
         self.play(
             Create(path_top_smooth),
             Create(path_top_aggro),
             Create(path_bot_smooth),
             Create(path_bot_aggro),
-            run_time=6.0,
+            run_time=tEnd / PLAYBACK_FACTOR,
             rate_func=linear,
         )
 
