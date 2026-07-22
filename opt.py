@@ -23,10 +23,15 @@ if __name__ == '__main__':
     n_samples = 100
     n_rounds = 10
 
+    #coordsToOptimize = range(len(x))
+    # Let the PID parameters be optimized at the end
+    coordsToOptimize = (2,3,4,0,1)
+
     for round in range(n_rounds):
+        print(f'= Round {round} ==')
         # One round of coordinate descent
-        for coordinate in range(len(x)):
-            print(f'== x[{coordinate}] ==')
+        for coordinate in coordsToOptimize:
+            print(f'\t== x[{coordinate}] ==')
             x_best = x[coordinate]
             y_best = -float("inf")
             for n in range(n_samples):
@@ -35,7 +40,9 @@ if __name__ == '__main__':
                 if y > y_best:
                     x_best = x[coordinate]
                     y_best = y
-                print(f'{x[coordinate]:.2f}: {y:.4f}')
             x[coordinate] = x_best
+            print(f'\t\t{x_best:.2f}: {y_best:.4f}')
+        print(f'\t{f(x):.4f}: {x}')
+        
 
     print(f'{f(x):.4f}: {x}')
