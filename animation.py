@@ -10,55 +10,104 @@ class GliderThermalComparison(Scene):
         smooth = sim.simulate(30.0, sim.PILOT_SMOOTH)
         aggro = sim.simulate(30.0, sim.PILOT_AGGRESSIVE)
 
+        x_min = 0
+        x_max = max(smooth['x'][-1], aggro['x'][-1])
+
+        z_min = 0
+        z_max = 0
+        for (z0, z1) in zip(smooth['z'], aggro['z']):
+            z_min = min(min(z_min, z0), z1)
+            z_max = max(max(z_max, z0), z1)
+        
+        e_min = smooth["E_h_detrended"][0]
+        e_max = smooth["E_h_detrended"][0]
+        for (e0, e1) in zip(smooth["E_h_detrended"], aggro["E_h_detrended"]):
+            e_min = min(min(e_min, e0), e1)
+            e_max = max(max(e_max, e0), e1)
+
         # ----------------------------------------------------------------------
         # Upper Axes: Trajectory (x vs z)
         # ----------------------------------------------------------------------
         ax_top = Axes(
-            x_range=[0, 1150, 200],
-            y_range=[-20, 60, 20],
+            x_range=[0, x_max, 200],
+            y_range=[z_min, z_max, 20],
             x_length=10,
             y_length=2.5,
             axis_config={"include_numbers": True, "font_size": 18},
         ).to_edge(UP, buff=0.6)
 
         label_top = ax_top.get_axis_labels(
-            x_label=Tex("Distance $x$ (ft)", font_size=20),
-            y_label=Tex("Altitude $z$ (ft)", font_size=20),
+            x_label=Tex("Distance (m)", font_size=20),
+            y_label=Tex("Altitude (m)", font_size=20),
         )
 
-        # Thermal updraft visualization shading
-        thermal_rect = Rectangle(
-            width=ax_top.x_axis.number_to_point(984)[0]
-            - ax_top.x_axis.number_to_point(0)[0],
-            height=2.3,
-            fill_color=BLUE,
-            fill_opacity=0.15,
-            stroke_width=0,
-        ).move_to(ax_top.c2p(492, 20))
+        # ----------------------------------------------------------------------
+        # Secondary Right Y-Axis & Thermal Profile w_allen(x)
+        # ----------------------------------------------------------------------
+        W_SCALE = z_max / 5.0
 
-        thermal_text = Text(
-            "Thermal Updraft Region (Allen Model)", font_size=14, color=BLUE_B
-        ).move_to(thermal_rect.get_top() + DOWN * 0.2)
+        # Right Y-axis line at x = 150 m
+        right_axis_line = Line(
+            ax_top.c2p(150, 0),
+            ax_top.c2p(150, z_max),
+            stroke_width=2,
+            color=BLUE_B,
+        )
+
+        # Right Y-axis tick labels
+        w_ticks = VGroup()
+        for val in range(0, 5, 1):
+            z_mapped = val * W_SCALE
+            tick = Line(
+                ax_top.c2p(150, z_mapped),
+                ax_top.c2p(150, z_mapped) + RIGHT * 0.08,
+                stroke_width=2,
+                color=BLUE_B,
+            )
+            lbl = Text(f"{val}", font_size=14, color=BLUE_B).next_to(
+                tick, RIGHT, buff=0.08
+            )
+            w_ticks.add(tick, lbl)
+
+        label_top_w = Tex("$w_{\\text{updraft}}$ (ft/s)", font_size=18, color=BLUE_B)
+        label_top_w.next_to(right_axis_line, UP + RIGHT, buff=0.05)
+
+        # Generate w(x) points
+        x_m_vals = np.linspace(0, 1200, 200)
+        w_m_vals = [sim.w(xm) for xm in x_m_vals]
+
+        w_pts = [ax_top.c2p(xf, wf * W_SCALE) for xf, wf in zip(x_m_vals, w_m_vals)]
+        w_curve = VMobject(color=BLUE_B, stroke_width=2).set_points_smoothly(w_pts)
+
+        # Fill under the updraft bell curve
+        baseline_pts = [ax_top.c2p(xf, 0) for xf in reversed(w_m_vals)]
+        w_fill = Polygon(
+            *w_pts,
+            *baseline_pts,
+            fill_color=BLUE,
+            fill_opacity=0.2,
+            stroke_width=0,
+        )
 
         # ----------------------------------------------------------------------
         # Lower Axes: Detrended Effective Energy Height
         # ----------------------------------------------------------------------
         ax_bot = Axes(
-            x_range=[0, 1150, 200],
-            y_range=[-30, 450, 100],
+            x_range=[0, x_max, 200],
+            y_range=[e_min, e_max, 10],
             x_length=10,
             y_length=2.8,
             axis_config={"include_numbers": True, "font_size": 18},
         ).to_edge(DOWN, buff=0.8)
 
         label_bot = ax_bot.get_axis_labels(
-            x_label=Tex("Distance $x$ (ft)", font_size=20),
-            y_label=Tex("Detrended $E_{h,eff}$ (ft)", font_size=20),
+            x_label=Tex("Distance $x$ (m)", font_size=20),
+            y_label=Tex("Racing Energy (m)", font_size=20),
         )
 
         # Title and Legends
         title = Text(
-            "Thermal Entry Pull-Up: Smooth (1.2g) vs. Aggressive (2.0g)",
+            "Dolphin Pull-Up",
             font_size=22,
             weight=BOLD,
         ).to_edge(UP, buff=0.15)
@@ -77,8 +126,11 @@ class GliderThermalComparison(Scene):
             title,
             ax_top,
             label_top,
-            thermal_rect,
-            thermal_text,
+            w_fill,
+            w_curve,
+            right_axis_line,
+            w_ticks,
+            label_top_w,
             ax_bot,
             label_bot,
             legend,
@@ -87,50 +139,20 @@ class GliderThermalComparison(Scene):
         # ----------------------------------------------------------------------
         # Trajectory Curves
         # ----------------------------------------------------------------------
-        print(len(smooth['x']))
-        print(len(smooth['z']))
-        graph_top_smooth = ax_top.plot_line_graph(
-            x_values=smooth["x"],
-            y_values=smooth["z"],
-            z_values=np.zeros(len(smooth["x"])),
-            add_vertex_dots=False,
-            line_color=TEAL,
-            stroke_width=3,
-        )
-        path_top_smooth = graph_top_smooth["line_graph"]
+        pts_top_smooth = [ax_top.c2p(x, z) for x, z in zip(smooth["x"], smooth["z"])]
+        pts_top_aggro = [ax_top.c2p(x, z) for x, z in zip(aggro["x"], aggro["z"])]
 
-        graph_top_aggro = ax_top.plot_line_graph(
-            x_values=aggro["x"],
-            y_values=aggro["z"],
-            z_values=np.zeros(len(aggro["x"])),
-            add_vertex_dots=False,
-            line_color=ORANGE,
-            stroke_width=3,
-        )
-        path_top_aggro = graph_top_aggro["line_graph"]
+        pts_bot_smooth = [ax_bot.c2p(x, e) for x, e in zip(smooth["x"], smooth["E_h_detrended"])]
+        pts_bot_aggro = [ax_bot.c2p(x, e) for x, e in zip(aggro["x"], aggro["E_h_detrended"])]
 
-        graph_bot_smooth = ax_bot.plot_line_graph(
-            x_values=smooth["x"],
-            y_values=smooth["E_h_detrended"],
-            z_values=np.zeros(len(smooth["x"])),
-            add_vertex_dots=False,
-            line_color=TEAL,
-            stroke_width=3,
-        )
-        path_bot_smooth = graph_bot_smooth["line_graph"]
+        path_top_smooth = VMobject(color=TEAL, stroke_width=3).set_points_smoothly(pts_top_smooth)
+        path_top_aggro = VMobject(color=ORANGE, stroke_width=3).set_points_smoothly(pts_top_aggro)
 
-        graph_bot_aggro = ax_bot.plot_line_graph(
-            x_values=aggro["x"],
-            y_values=aggro["E_h_detrended"],
-            z_values=np.zeros(len(aggro["x"])),
-            add_vertex_dots=False,
-            line_color=ORANGE,
-            stroke_width=3,
-        )
-        path_bot_aggro = graph_bot_aggro["line_graph"]
+        path_bot_smooth = VMobject(color=TEAL, stroke_width=3).set_points_smoothly(pts_bot_smooth)
+        path_bot_aggro = VMobject(color=ORANGE, stroke_width=3).set_points_smoothly(pts_bot_aggro)
 
         # ----------------------------------------------------------------------
-        # Render Animation
+        # Animation Execution
         # ----------------------------------------------------------------------
         self.play(
             Create(path_top_smooth),
@@ -144,12 +166,8 @@ class GliderThermalComparison(Scene):
         final_e_smooth = smooth["E_h_detrended"][-1]
         final_e_aggro = aggro["E_h_detrended"][-1]
 
-        dot_end_smooth = Dot(
-            ax_bot.c2p(smooth["x"][-1], final_e_smooth), color=TEAL
-        )
-        dot_end_aggro = Dot(
-            ax_bot.c2p(aggro["x"][-1], final_e_aggro), color=ORANGE
-        )
+        dot_end_smooth = Dot(ax_bot.c2p(smooth["x"][-1], final_e_smooth), color=TEAL)
+        dot_end_aggro = Dot(ax_bot.c2p(aggro["x"][-1], final_e_aggro), color=ORANGE)
 
         txt_delta = Tex(
             r"$\Delta E_{h,\text{eff}} \approx 2.1\text{ ft}$",
