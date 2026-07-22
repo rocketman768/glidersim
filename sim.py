@@ -109,13 +109,13 @@ PILOT_AGGRESSIVE = PilotProfile(
 
 PILOT_OPTIMIZED = PilotProfile(
     name="Maverick",
-    kp=0.07333333333333332,
-    kd=0.395959595959596,
-    targetDolphin_v=25.0,
-    n_max=1.3718181818181818,
-    n_min=0.22999999999999998,
-    x_lookaheadPull=50,
-    x_lookaheadPush=50,
+    kp=0.2,
+    kd=0.6303030303030304,
+    targetDolphin_v=38.333333333333336,
+    n_max=2.8994949494949496,
+    n_min=0.08,
+    x_lookaheadPull=-59.5959595959596,
+    x_lookaheadPush=37.373737373737356,
 )
 
 # Pick the pilot!
@@ -250,13 +250,18 @@ def controlUpdate():
     _, _, v_dot, _, _ = derivatives(state_x, state_z, state_v, state_gamma, state_n, 0.0)
 
     #target_v = targetDolphin_v if w(state_x + x_lookahead) > 0 else targetCruise_v
-    target_v = targetCruise_v
-    if w(state_x + x_lookaheadPush) < 0:
-        # Pilot sees end of thermal ahead
+
+    entering_lift = w(state_x + x_lookaheadPull) > 0
+    exiting_lift = w(state_x + x_lookaheadPush) <= 0
+    if exiting_lift and w(state_x) > 0:
+        # We are currently in lift, but seeing the exit ahead. Push over early
         target_v = targetCruise_v
-    elif w(state_x + x_lookaheadPull) > 0:
-        # Pilot sees beginning of thermal ahead
+    elif entering_lift:
+        # We see lift ahead. Pull up early
         target_v = targetDolphin_v
+    else:
+        # In still air. Cruise
+        target_v = targetCruise_v
 
     # Proportional term   
     n_cmd = 1.0 + kp * (state_v - target_v)
