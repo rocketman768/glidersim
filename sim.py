@@ -112,7 +112,7 @@ def w_allen(x):
     thermalWidth = 300.0 # m
     thermalVelocity = 2.5 # m/s
 
-    x_c = thermalWidth / 2       # Center of thermal
+    x_c = 1.5 * thermalWidth       # Center of thermal
     r0 = thermalWidth / 3        # Radius of zero-lift crossover
     w_peak = thermalVelocity     # Peak core lift (m/s)
     
