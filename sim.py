@@ -56,6 +56,7 @@ class PilotProfile:
     kd: float      # Acceleration damping gain (g's per m/s^2 acceleration)
     n_max: float   # Upper load factor limit (g)
     n_min: float   # Lower load factor limit (g)
+    x_lookahead: float # Pilots can anticipate this far into the future (m)
 
 PILOT_SMOOTH = PilotProfile(
     name="SmoothOperator (1.2g)",
@@ -63,6 +64,7 @@ PILOT_SMOOTH = PilotProfile(
     kd=0.38,
     n_max=1.2,
     n_min=0.8,
+    x_lookahead=50,
 )
 
 PILOT_MODERATE = PilotProfile(
@@ -71,6 +73,7 @@ PILOT_MODERATE = PilotProfile(
     kd=0.38,
     n_max=1.5,
     n_min=0.7,
+    x_lookahead=50,
 )
 
 PILOT_AGGRESSIVE = PilotProfile(
@@ -78,7 +81,8 @@ PILOT_AGGRESSIVE = PilotProfile(
     kp=0.10,
     kd=0.38,
     n_max=2.0,
-    n_min=0.4,
+    n_min=0.0,
+    x_lookahead=50,
 )
 
 # Pick the pilot!
@@ -210,11 +214,13 @@ def controlUpdate():
     kd = pilot.kd
     n_max = pilot.n_max
     n_min = pilot.n_min
+    x_lookahead = pilot.x_lookahead
 
     # We need the velocity derivative. (pass dummy 0.0 for n_cmd since dv/dt doesn't use it)
     _, _, v_dot, _, _ = derivatives(state_x, state_z, state_v, state_gamma, state_n, 0.0)
 
-    target_v = targetDolphin_v if w(state_x) > 0 else targetCruise_v
+    target_v = targetDolphin_v if w(state_x + x_lookahead) > 0 else targetCruise_v
+
     # Proportional term   
     n_cmd = 1.0 + kp * (state_v - target_v)
     # derivative term
