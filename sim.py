@@ -272,13 +272,7 @@ def advanceState():
     
     state_t += dt
 
-def printState():
-    v_kt = state_v * 1.94
-    x_ft = state_x * 3.28
-    z_ft = state_z * 3.28
-    pitch_deg = state_gamma / math.pi * 180.0
-    #print(f'{state_t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}\t{state_n:.1f}')
-
+def detrendedEnergyHeight():
     # Adjust the total energy height for maccready
     w_mc = impliedMacCready(targetCruise_v)
     totalEnergy_height = state_z + state_v ** 2 / (2 * g) - w_mc * state_t
@@ -289,9 +283,38 @@ def printState():
     baseline_E_h = - (s_eff * state_x)
 
     delta_E_h = (totalEnergy_height - baseline_E_h)
+    return delta_E_h
+
+def printState():
+    v_kt = state_v * 1.94
+    x_ft = state_x * 3.28
+    z_ft = state_z * 3.28
+    pitch_deg = state_gamma / math.pi * 180.0
+    #print(f'{state_t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}\t{state_n:.1f}')
+
+    delta_E_h = detrendedEnergyHeight()
 
     delta_E_h_ft = delta_E_h * 3.28
     print(f'{x_ft:.0f}\t{delta_E_h_ft:.0f}')
+
+def simulate(tMax, simPilot=PILOT_SMOOTH):
+    global pilot
+
+    pilot = simPilot
+    initializeState()
+
+    history = {"t": [], "x": [], "z": [], "v": [], "n": [], "E_h_detrended": []}
+
+    while state_t < tMax:
+        history['t'].append(state_t)
+        history['x'].append(state_x)
+        history['z'].append(state_z)
+        history['v'].append(state_v)
+        history['n'].append(state_n)
+        history['E_h_detrended'].append(detrendedEnergyHeight())
+        advanceState()
+    
+    return history
 
 if __name__ == '__main__':
     initializeState()
