@@ -20,7 +20,7 @@ if __name__ == '__main__':
     x_min = [0.01, 0.0, 25.0, 1.01, 0.0]
     x_max = [0.2, 0.8, 49.0, 3.0, 0.99]
 
-    n_samples = 10
+    n_samples = 100
     n_rounds = 10
 
     for round in range(n_rounds):
@@ -38,4 +38,4 @@ if __name__ == '__main__':
                 print(f'{x[coordinate]:.2f}: {y:.4f}')
             x[coordinate] = x_best
 
-    print(x)
+    print(f'{f(x):.4f}: {x}')

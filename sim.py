@@ -62,8 +62,18 @@ class PilotProfile:
     n_min: float   # Lower load factor limit (g)
     x_lookahead: float # Pilots can anticipate this far into the future (m)
 
+PILOT_BLOCK = PilotProfile(
+    name="Block STF",
+    kp=0.10,
+    kd=0.38,
+    targetDolphin_v=targetCruise_v,
+    n_max=1.2,
+    n_min=0.8,
+    x_lookahead=50,
+)
+
 PILOT_SMOOTH = PilotProfile(
-    name="SmoothOperator (1.2g)",
+    name="SmoothOperator",
     kp=0.10,
     kd=0.38,
     targetDolphin_v=28.0,
@@ -73,7 +83,7 @@ PILOT_SMOOTH = PilotProfile(
 )
 
 PILOT_MODERATE = PilotProfile(
-    name="BasicBob (1.5g)",
+    name="BasicBob",
     kp=0.10,
     kd=0.38,
     targetDolphin_v=28.0,
@@ -83,7 +93,7 @@ PILOT_MODERATE = PilotProfile(
 )
 
 PILOT_AGGRESSIVE = PilotProfile(
-    name="Aggro (2.0g)",
+    name="AggroCraig",
     kp=0.10,
     kd=0.38,
     targetDolphin_v=28.0,
@@ -94,11 +104,11 @@ PILOT_AGGRESSIVE = PilotProfile(
 
 PILOT_OPTIMIZED = PilotProfile(
     name="Maverick",
-    kp=0.052222222222222225,
-    kd=0.26666666666666666,
+    kp=0.06565656565656565,
+    kd=0.35555555555555557,
     targetDolphin_v=25.0,
-    n_max=1.4522222222222223,
-    n_min=0.10999999999999999,
+    n_max=1.3718181818181818,
+    n_min=0.22999999999999998,
     x_lookahead=50,
 )
 

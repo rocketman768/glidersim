@@ -8,8 +8,10 @@ class GliderThermalComparison(Scene):
 
     def construct(self):
         # Generate simulation datasets
-        smooth = sim.simulate(30.0, sim.PILOT_SMOOTH)
-        aggro = sim.simulate(30.0, sim.PILOT_AGGRESSIVE)
+        smoothPilot = sim.PILOT_OPTIMIZED
+        aggroPilot = sim.PILOT_BLOCK
+        smooth = sim.simulate(30.0, smoothPilot)
+        aggro = sim.simulate(30.0, aggroPilot)
 
         x_min = 0
         x_max = max(smooth['x'][-1], aggro['x'][-1])
@@ -72,7 +74,7 @@ class GliderThermalComparison(Scene):
             )
             w_ticks.add(tick, lbl)
 
-        label_top_w = Tex("$w_{\\text{updraft}}$ (m/s)", font_size=18, color=BLUE_B)
+        label_top_w = Tex("$w_{\\text{therm}}$ (m/s)", font_size=18, color=BLUE_B)
         label_top_w.next_to(right_axis_line, UP + RIGHT, buff=0.05)
 
         # Generate w(x) points
@@ -106,7 +108,7 @@ class GliderThermalComparison(Scene):
         ).to_edge(DOWN, buff=0.8)
 
         label_bot = ax_bot.get_axis_labels(
-            x_label=Tex("Distance $x$ (m)", font_size=20),
+            x_label=Tex("Distance (m)", font_size=20),
             y_label=Tex("Racing Energy (m)", font_size=20),
         )
 
@@ -118,14 +120,14 @@ class GliderThermalComparison(Scene):
         ).to_edge(UP, buff=0.15)
 
         leg_smooth = Line(ORIGIN, RIGHT * 0.4, color=TEAL, stroke_width=4)
-        txt_smooth = Text("1.2g Smooth Pull", font_size=14, color=TEAL)
+        txt_smooth = Text(smoothPilot.name, font_size=14, color=TEAL)
         leg_aggro = Line(ORIGIN, RIGHT * 0.4, color=ORANGE, stroke_width=4)
-        txt_aggro = Text("2.0g Aggressive Pull", font_size=14, color=ORANGE)
+        txt_aggro = Text(aggroPilot.name, font_size=14, color=ORANGE)
 
         legend = VGroup(
             leg_smooth, txt_smooth, leg_aggro, txt_aggro
-        ).arrange_in_grid(rows=1, buff=0.2)
-        legend.next_to(ax_top, RIGHT, buff=-1.8).shift(UP * 0.3)
+        ).arrange_in_grid(rows=2, buff=0.2)
+        legend.next_to(ax_top, LEFT, buff=-1.8).shift(DOWN * 0.7 + RIGHT * 0.7)
 
         self.add(
             title,
