@@ -46,10 +46,11 @@ class GliderThermalComparison(Scene):
         # ----------------------------------------------------------------------
         W_SCALE = z_max / 5.0
 
-        # Right Y-axis line at x = 150 m
+        # Right Y-axis line at thermal center
+        w_center = 450
         right_axis_line = Line(
-            ax_top.c2p(150, 0),
-            ax_top.c2p(150, z_max),
+            ax_top.c2p(w_center, 0),
+            ax_top.c2p(w_center, z_max),
             stroke_width=2,
             color=BLUE_B,
         )
@@ -59,8 +60,8 @@ class GliderThermalComparison(Scene):
         for val in range(0, 5, 1):
             z_mapped = val * W_SCALE
             tick = Line(
-                ax_top.c2p(150, z_mapped),
-                ax_top.c2p(150, z_mapped) + RIGHT * 0.08,
+                ax_top.c2p(w_center, z_mapped),
+                ax_top.c2p(w_center, z_mapped) + RIGHT * 0.08,
                 stroke_width=2,
                 color=BLUE_B,
             )
@@ -69,7 +70,7 @@ class GliderThermalComparison(Scene):
             )
             w_ticks.add(tick, lbl)
 
-        label_top_w = Tex("$w_{\\text{updraft}}$ (ft/s)", font_size=18, color=BLUE_B)
+        label_top_w = Tex("$w_{\\text{updraft}}$ (m/s)", font_size=18, color=BLUE_B)
         label_top_w.next_to(right_axis_line, UP + RIGHT, buff=0.05)
 
         # Generate w(x) points
@@ -165,12 +166,13 @@ class GliderThermalComparison(Scene):
 
         final_e_smooth = smooth["E_h_detrended"][-1]
         final_e_aggro = aggro["E_h_detrended"][-1]
+        diff_e = final_e_smooth - final_e_aggro
 
         dot_end_smooth = Dot(ax_bot.c2p(smooth["x"][-1], final_e_smooth), color=TEAL)
         dot_end_aggro = Dot(ax_bot.c2p(aggro["x"][-1], final_e_aggro), color=ORANGE)
 
         txt_delta = Tex(
-            r"$\Delta E_{h,\text{eff}} \approx 2.1\text{ ft}$",
+            r"$\Delta E_{h,\text{eff}} \approx " + f"{diff_e:.1f}" + r" \text{ m}$",
             font_size=18,
             color=YELLOW,
         ).next_to(dot_end_smooth, RIGHT, buff=0.2)
