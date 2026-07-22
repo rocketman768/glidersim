@@ -45,6 +45,8 @@ state_n = 1.0 # Gs of acceleration. Control input.
 
 # Simulation constants
 dt = 0.1 # s
+targetCruise_v = 49.0 # m/s
+targetDolphin_v = 28.0 # m/s
 
 # Pilot profiles
 @dataclass
@@ -94,7 +96,7 @@ def initializeState():
     state_t = 0.0 # s
     state_x = 0.0 # m
     state_z = 0.0 # m
-    state_v = 49.0 # m/s
+    state_v = targetCruise_v # m/s
     state_n = 1.0 # m/s
     state_gamma = steadyStateGamma(state_v, state_n)
 
@@ -164,6 +166,22 @@ def cd0(cl):
 def cdi(cl):
     return cl * cl / (math.pi * AR * eOswald)
 
+def sinkRateInStillAir(v):
+    """Calculates steady-state unaccelerated sink rate (m/s) at airspeed v."""
+    cl = commandedLiftCoefficient(1.0, v)
+    cd = cd0(cl) + cdi(cl)
+    drag = q(v) * S * cd
+    return (drag * v) / (m * g)
+
+def impliedMacCready(v_cruise):
+    """Computes the implied MacCready climb rate w_mc (m/s) for a given cruise speed."""
+    dv = 0.01
+    w_sink = sinkRateInStillAir(v_cruise)
+    dw_dv = (sinkRateInStillAir(v_cruise + dv) - sinkRateInStillAir(v_cruise - dv)) / (2.0 * dv)
+    
+    # MacCready tangent intercept: w_mc = v * (dw/dv) - w_sink
+    return v_cruise * dw_dv - w_sink
+
 def derivatives(x, z, v, gamma, n, n_cmd):
     """Calculates [dx/dt, dz/dt, dv/dt, dgamma/dt, dn/dt] for a given state."""
     cl = commandedLiftCoefficient(n, v)
@@ -196,7 +214,7 @@ def controlUpdate():
     # We need the velocity derivative. (pass dummy 0.0 for n_cmd since dv/dt doesn't use it)
     _, _, v_dot, _, _ = derivatives(state_x, state_z, state_v, state_gamma, state_n, 0.0)
 
-    target_v = 28.0 if w(state_x) > 0 else 49.0 
+    target_v = targetDolphin_v if w(state_x) > 0 else targetCruise_v
     # Proportional term   
     n_cmd = 1.0 + kp * (state_v - target_v)
     # derivative term
@@ -261,9 +279,19 @@ def printState():
     pitch_deg = state_gamma / math.pi * 180.0
     #print(f'{state_t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}\t{state_n:.1f}')
 
-    totalEnergy_height = state_z + state_v ** 2 / (2 * g)
-    totalEnergy_height_ft = totalEnergy_height * 3.28
-    print(f'{x_ft:.0f}\t{totalEnergy_height_ft:.0f}')
+    # Adjust the total energy height for maccready
+    w_mc = impliedMacCready(targetCruise_v)
+    totalEnergy_height = state_z + state_v ** 2 / (2 * g) - w_mc * state_t
+
+    # Steady cruise slope (m of energy height lost per m of horizontal distance)
+    s_eff = (sinkRateInStillAir(targetCruise_v) + w_mc) / targetCruise_v
+    # Detrended energy height
+    baseline_E_h = - (s_eff * state_x)
+
+    delta_E_h = (totalEnergy_height - baseline_E_h)
+
+    delta_E_h_ft = delta_E_h * 3.28
+    print(f'{x_ft:.0f}\t{delta_E_h_ft:.0f}')
 
 if __name__ == '__main__':
     initializeState()
