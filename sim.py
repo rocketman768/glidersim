@@ -41,12 +41,16 @@ state_x = None # m
 state_z = None # m
 state_v = None # m/s
 state_gamma = None # radians (note: initialize this to proper steady-state for x/z/v)
+state_nCmd = 1.0 # Commanded Gs of acceleration
 state_n = 1.0 # Gs of acceleration. Control input.
 
 # Simulation constants
 dt = 0.1 # s
 targetCruise_v = 49.0 # m/s
 targetDolphin_v = 28.0 # m/s
+thermalWidth = 300.0 # m
+thermalVelocity = 2.5 # m/s
+thermalCenter = 450.0 # m
 
 # Pilot profiles
 @dataclass
@@ -81,7 +85,7 @@ PILOT_AGGRESSIVE = PilotProfile(
     kp=0.10,
     kd=0.38,
     n_max=2.0,
-    n_min=0.0,
+    n_min=0.5,
     x_lookahead=50,
 )
 
@@ -105,18 +109,13 @@ def initializeState():
     state_gamma = steadyStateGamma(state_v, state_n)
 
 def w_box(x):
-    thermalWidth = 300 # m
-    thermalVelocity = 2.5 # m/s
-    if x < 0 or x > thermalWidth:
+    if x < thermalCenter - thermalWidth/2 or x > thermalCenter + thermalWidth/2:
         return 0.0
     else:
         return thermalVelocity
 
 def w_allen(x):
-    thermalWidth = 300.0 # m
-    thermalVelocity = 2.5 # m/s
-
-    x_c = 1.5 * thermalWidth       # Center of thermal
+    x_c = thermalCenter
     r0 = thermalWidth / 3        # Radius of zero-lift crossover
     w_peak = thermalVelocity     # Peak core lift (m/s)
     
@@ -229,15 +228,15 @@ def controlUpdate():
     return max(n_min, min(n_max, n_cmd))
 
 def advanceState():
-    global state_t, state_x, state_z, state_v, state_gamma, state_n
+    global state_t, state_x, state_z, state_v, state_gamma, state_n, state_nCmd
     # RK4 update
 
     # 1. Update control input based on current state
-    n_cmd = controlUpdate()
+    state_nCmd = controlUpdate()
     
     # 2. RK4 Intermediate steps
     # k1
-    k1_x, k1_z, k1_v, k1_g, k1_n = derivatives(state_x, state_z, state_v, state_gamma, state_n, n_cmd)
+    k1_x, k1_z, k1_v, k1_g, k1_n = derivatives(state_x, state_z, state_v, state_gamma, state_n, state_nCmd)
     
     # k2
     k2_x, k2_z, k2_v, k2_g, k2_n = derivatives(
@@ -246,7 +245,7 @@ def advanceState():
         state_v + 0.5 * dt * k1_v,
         state_gamma + 0.5 * dt * k1_g,
         state_n + 0.5 * dt * k1_n,
-        n_cmd
+        state_nCmd
     )
     
     # k3
@@ -256,7 +255,7 @@ def advanceState():
         state_v + 0.5 * dt * k2_v,
         state_gamma + 0.5 * dt * k2_g,
         state_n + 0.5 * dt * k2_n,
-        n_cmd
+        state_nCmd
     )
     
     # k4
@@ -266,7 +265,7 @@ def advanceState():
         state_v + dt * k3_v,
         state_gamma + dt * k3_g,
         state_n + dt * k3_n,
-        n_cmd
+        state_nCmd
     )
     
     # 3. Weighted state updates
@@ -309,14 +308,16 @@ def simulate(tMax, simPilot=PILOT_SMOOTH):
     pilot = simPilot
     initializeState()
 
-    history = {"t": [], "x": [], "z": [], "v": [], "n": [], "E_h_detrended": []}
+    history = {"t": [], "x": [], "z": [], "v": [], "gamma": [], "n": [], "n_cmd": [], "E_h_detrended": []}
 
     while state_t < tMax:
         history['t'].append(state_t)
         history['x'].append(state_x)
         history['z'].append(state_z)
         history['v'].append(state_v)
+        history['gamma'].append(state_gamma)
         history['n'].append(state_n)
+        history['n_cmd'].append(state_nCmd)
         history['E_h_detrended'].append(detrendedEnergyHeight())
         advanceState()
     
