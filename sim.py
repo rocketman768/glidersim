@@ -172,11 +172,6 @@ def q(v):
 
 def commandedLiftCoefficient(n0, v):
     cl = n0 * m * g / (q(v) * S)
-    # enforce model constraints...no flow separation
-    if cl > 1.33:
-        cl = 1.33
-    if cl < 0.281:
-        cl = 0.281
     return cl
 
 def lift(v, cl):
@@ -196,6 +191,12 @@ def cd0(cl):
     # The polar ignores drag from the fuselage and tail.
     # Add some to make it more realistic
     v += 30e-4
+
+    # End of the drag buckets...approximate the nixus polar dropoffs
+    if cl < 0.281:
+        v += (0.281 - cl) * 50e-4/0.281
+    elif cl > 1.33:
+        v += (cl - 1.33) * 100e-4/0.1
 
     return v
 
