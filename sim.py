@@ -60,8 +60,8 @@ class PilotProfile:
     targetDolphin_v: float # Target dolphin speed (m/s)
     n_max: float   # Upper load factor limit (g)
     n_min: float   # Lower load factor limit (g)
-    x_lookaheadPull: float # Pilots can anticipate this far into the future for pulls (m)
-    x_lookaheadPush: float # Pilots can anticipate this far into the future for pushes (m)
+    v_pullThresh: float # Pilot pulls once the thermal is stronger than this (m/s)
+    v_pushThresh: float # Pilot pushes once the thermal becomes weaker than this (m/s)
     x_cheaterPull: float = None
     x_cheaterPush: float = None
 
@@ -72,65 +72,54 @@ PILOT_BLOCK = PilotProfile(
     targetDolphin_v=targetCruise_v,
     n_max=1.2,
     n_min=0.8,
-    x_lookaheadPull=50,
-    x_lookaheadPush=50,
+    v_pullThresh=1.5,
+    v_pushThresh=1.5,
 )
 
 PILOT_SMOOTH = PilotProfile(
     name="SmoothOperator",
-    kp=0.10,
-    kd=0.38,
-    targetDolphin_v=28.0,
+    kp=0.10404040404040404,
+    kd=0.7757575757575759,
+    targetDolphin_v=25.0,
     n_max=1.2,
     n_min=0.8,
-    x_lookaheadPull=50,
-    x_lookaheadPush=50,
-)
-
-PILOT_MODERATE = PilotProfile(
-    name="BasicBob",
-    kp=0.10,
-    kd=0.38,
-    targetDolphin_v=28.0,
-    n_max=1.5,
-    n_min=0.7,
-    x_lookaheadPull=50,
-    x_lookaheadPush=50,
+    v_pullThresh=0.0,
+    v_pushThresh=0.9848484848484849,
 )
 
 PILOT_AGGRESSIVE = PilotProfile(
     name="AggroCraig",
-    kp=0.10,
-    kd=0.38,
-    targetDolphin_v=28.0,
+    kp=0.07141414141414142,
+    kd=0.3797979797979798,
+    targetDolphin_v=26.454545454545453,
     n_max=2.0,
     n_min=0.5,
-    x_lookaheadPull=50,
-    x_lookaheadPush=50,
+    v_pullThresh=1.1868686868686869,
+    v_pushThresh=1.9696969696969697,
 )
 
 PILOT_CHEATER = PilotProfile(
     name="Cheater",
-    kp=0.11555555555555555,
-    kd=0.47676767676767673,
-    targetDolphin_v=30.333333333333332,
+    kp=0.14242424242424245,
+    kd=0.5171717171717173,
+    targetDolphin_v=33.72727272727273,
     n_max=3.0,
     n_min=0.0,
-    x_lookaheadPull=0,
-    x_lookaheadPush=0,
+    v_pullThresh=0,
+    v_pushThresh=0,
     x_cheaterPull=407.57575757575756,
     x_cheaterPush=489.8989898989899,
 )
 
 PILOT_OPTIMIZED = PilotProfile(
     name="Maverick",
-    kp=0.2,
-    kd=0.6303030303030304,
-    targetDolphin_v=38.333333333333336,
-    n_max=2.8994949494949496,
-    n_min=0.08,
-    x_lookaheadPull=-59.5959595959596,
-    x_lookaheadPush=37.373737373737356,
+    kp=0.1481818181818182,
+    kd=0.5171717171717173,
+    targetDolphin_v=34.45454545454545,
+    n_max=3.0,
+    n_min=0.0,
+    v_pullThresh=1.691919191919192,
+    v_pushThresh=1.7171717171717171,
 )
 
 # Pick the pilot!
@@ -257,8 +246,8 @@ def controlUpdate():
     kd = pilot.kd
     n_max = pilot.n_max
     n_min = pilot.n_min
-    x_lookaheadPull = pilot.x_lookaheadPull
-    x_lookaheadPush = pilot.x_lookaheadPush
+    v_pullThresh = max(0, pilot.v_pullThresh)
+    v_pushThresh = max(0, pilot.v_pushThresh)
     targetDolphin_v = pilot.targetDolphin_v
 
     # We need the velocity derivative. (pass dummy 0.0 for n_cmd since dv/dt doesn't use it)
@@ -270,17 +259,20 @@ def controlUpdate():
         # Just for demo, someone who can know the exact position to push and pull for this thermal
         target_v = targetDolphin_v if state_x > pilot.x_cheaterPull and state_x < pilot.x_cheaterPush else targetCruise_v
     else:
-        entering_lift = w(state_x + x_lookaheadPull) > 0
-        exiting_lift = w(state_x + x_lookaheadPush) <= 0
-        if exiting_lift and w(state_x) > 0:
-            # We are currently in lift, but seeing the exit ahead. Push over early
-            target_v = targetCruise_v
-        elif entering_lift:
-            # We see lift ahead. Pull up early
-            target_v = targetDolphin_v
-        else:
-            # In still air. Cruise
-            target_v = targetCruise_v
+        localShear = dw_dx(state_x)
+        localW = w(state_x)
+        if localShear >= 0:
+            # Either coming in to the core or exiting the sink on the far side
+            if localW < v_pullThresh:
+                target_v = targetCruise_v
+            else:
+                target_v = targetDolphin_v
+        elif localShear < 0:
+            # Either passing the core or entering the sink on the near side
+            if localW < v_pushThresh:
+                target_v = targetCruise_v
+            else:
+                target_v = targetDolphin_v
 
     # Proportional term   
     n_cmd = 1.0 + kp * (state_v - target_v)

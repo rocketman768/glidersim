@@ -9,7 +9,7 @@ class GliderThermalComparison(Scene):
     def construct(self):
         # Generate simulation datasets
         smoothPilot = sim.PILOT_CHEATER
-        aggroPilot = sim.PILOT_SMOOTH
+        aggroPilot = sim.PILOT_AGGRESSIVE
         smooth = sim.simulate(30.0, smoothPilot)
         aggro = sim.simulate(30.0, aggroPilot)
 
@@ -37,7 +37,8 @@ class GliderThermalComparison(Scene):
             x_length=10,
             y_length=2.5,
             axis_config={"include_numbers": True, "font_size": 18},
-        ).to_edge(UP, buff=0.6)
+            tips=False,
+        ).to_edge(UP, buff=0.8)
 
         label_top = ax_top.get_axis_labels(
             x_label=Tex("Distance (m)", font_size=20),
@@ -105,6 +106,7 @@ class GliderThermalComparison(Scene):
             x_length=10,
             y_length=2.8,
             axis_config={"include_numbers": True, "font_size": 18},
+            tips=False,
         ).to_edge(DOWN, buff=0.8)
 
         label_bot = ax_bot.get_axis_labels(
@@ -119,15 +121,15 @@ class GliderThermalComparison(Scene):
             weight=BOLD,
         ).to_edge(UP, buff=0.15)
 
-        leg_smooth = Line(ORIGIN, RIGHT * 0.4, color=TEAL, stroke_width=4)
+        leg_smooth = Line(ORIGIN, RIGHT * 0.3, color=TEAL, stroke_width=4)
         txt_smooth = Text(smoothPilot.name, font_size=14, color=TEAL)
-        leg_aggro = Line(ORIGIN, RIGHT * 0.4, color=ORANGE, stroke_width=4)
+        leg_aggro = Line(ORIGIN, RIGHT * 0.3, color=ORANGE, stroke_width=4)
         txt_aggro = Text(aggroPilot.name, font_size=14, color=ORANGE)
 
         legend = VGroup(
             leg_smooth, txt_smooth, leg_aggro, txt_aggro
-        ).arrange_in_grid(rows=2, buff=0.2)
-        legend.next_to(ax_top, LEFT, buff=-1.8).shift(DOWN * 0.7 + RIGHT * 0.7)
+        ).arrange_in_grid(rows=2, buff=0.2, col_alignments='rl')
+        legend.next_to(ax_top, LEFT, buff=-1.8).shift(UP * 0.7 + RIGHT * 0.7)
 
         self.add(
             title,
