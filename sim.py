@@ -47,7 +47,6 @@ state_n = 1.0 # Gs of acceleration. Control input.
 # Simulation constants
 dt = 0.1 # s
 targetCruise_v = 49.0 # m/s
-targetDolphin_v = 28.0 # m/s
 thermalWidth = 300.0 # m
 thermalVelocity = 2.5 # m/s
 thermalCenter = 450.0 # m
@@ -58,6 +57,7 @@ class PilotProfile:
     name: str
     kp: float      # Speed error gain (g's per m/s speed error)
     kd: float      # Acceleration damping gain (g's per m/s^2 acceleration)
+    targetDolphin_v: float # Target dolphin speed (m/s)
     n_max: float   # Upper load factor limit (g)
     n_min: float   # Lower load factor limit (g)
     x_lookahead: float # Pilots can anticipate this far into the future (m)
@@ -66,6 +66,7 @@ PILOT_SMOOTH = PilotProfile(
     name="SmoothOperator (1.2g)",
     kp=0.10,
     kd=0.38,
+    targetDolphin_v=28.0,
     n_max=1.2,
     n_min=0.8,
     x_lookahead=50,
@@ -75,6 +76,7 @@ PILOT_MODERATE = PilotProfile(
     name="BasicBob (1.5g)",
     kp=0.10,
     kd=0.38,
+    targetDolphin_v=28.0,
     n_max=1.5,
     n_min=0.7,
     x_lookahead=50,
@@ -84,8 +86,19 @@ PILOT_AGGRESSIVE = PilotProfile(
     name="Aggro (2.0g)",
     kp=0.10,
     kd=0.38,
+    targetDolphin_v=28.0,
     n_max=2.0,
     n_min=0.5,
+    x_lookahead=50,
+)
+
+PILOT_OPTIMIZED = PilotProfile(
+    name="Maverick",
+    kp=0.052222222222222225,
+    kd=0.26666666666666666,
+    targetDolphin_v=25.0,
+    n_max=1.4522222222222223,
+    n_min=0.10999999999999999,
     x_lookahead=50,
 )
 
@@ -214,6 +227,7 @@ def controlUpdate():
     n_max = pilot.n_max
     n_min = pilot.n_min
     x_lookahead = pilot.x_lookahead
+    targetDolphin_v = pilot.targetDolphin_v
 
     # We need the velocity derivative. (pass dummy 0.0 for n_cmd since dv/dt doesn't use it)
     _, _, v_dot, _, _ = derivatives(state_x, state_z, state_v, state_gamma, state_n, 0.0)
