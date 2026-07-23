@@ -179,9 +179,9 @@ def w(x):
 
 def dw_dx(x):
     """Central difference derivative of w(x)."""
-    dx_step = 0.01
-    return (w(x + dx_step) - w(x - dx_step)) / (2.0 * dx_step)
-    #return dw_dx_allen(x)
+    #dx_step = 0.01
+    #return (w(x + dx_step) - w(x - dx_step)) / (2.0 * dx_step)
+    return dw_dx_allen(x)
 
 def q(v):
     return 0.5 * rho * v * v
@@ -234,6 +234,64 @@ def impliedMacCready(v_cruise):
     
     # MacCready tangent intercept: w_mc = v * (dw/dv) - w_sink
     return v_cruise * dw_dv - w_sink
+
+def maccreadyDolphinSpeed(x, v_cruise):
+    """
+    Computes the quasi-steady MacCready speed-to-fly at position x and the 
+    spatial speed derivative (dv/dx) required to track the MacCready schedule.
+
+    Returns:
+        v_stf: Optimal instantaneous speed-to-fly (m/s)
+        dv_dx: Target spatial acceleration dv/dx (1/s)
+    """
+    w_mc = impliedMacCready(v_cruise)
+    w_val = w(x)
+    dw_dx_val = dw_dx(x)
+
+    # MacCready equation is only valid for w(x) < w_mc.
+    # When w(x) >= w_mc, optimal straight speed is V_min_sink.
+    V_MIN_SINK=25.0
+    if w_val >= w_mc * 0.99:
+        return V_MIN_SINK, 0.0
+    
+    # MacCready target intercept: f(v) = v * w_s'(v) - w_s(v) = w_mc - w(x)
+    target = w_mc - w_val
+    
+    # Solve for v_stf via Newton-Raphson
+    v = v_cruise  # Initial guess
+    dv = 0.01     # Finite difference step for numerical derivatives
+
+    # Newton-Raphson
+    for _ in range(10):
+        w_sink = sinkRateInStillAir(v)
+        w_sink_plus = sinkRateInStillAir(v + dv)
+        w_sink_minus = sinkRateInStillAir(v - dv)
+        
+        # Numerical 1st and 2nd derivatives of polar sink rate w_s(v)
+        dw_dv = (w_sink_plus - w_sink_minus) / (2.0 * dv)
+        d2w_dv2 = (w_sink_plus - 2.0 * w_sink + w_sink_minus) / (dv ** 2)
+        
+        f = v * dw_dv - w_sink - target
+        f_prime = v * d2w_dv2  # df/dv
+        
+        if abs(f_prime) < 1e-9:
+            break
+            
+        step = f / f_prime
+        v -= step
+        
+        if abs(step) < 1e-5:
+            break
+
+    # Re-evaluate polar curvature at final v
+    w_sink = sinkRateInStillAir(v)
+    d2w_dv2 = (sinkRateInStillAir(v + dv) - 2.0 * w_sink + sinkRateInStillAir(v - dv)) / (dv ** 2)
+    
+    # Required spatial speed gradient: dv/dx = -1 / (v * w_s''(v)) * (dw/dx)
+    denom = v * d2w_dv2
+    dv_dx = -dw_dx_val / denom if denom > 1e-6 else 0.0
+
+    return v, dv_dx
 
 def derivatives(x, z, v, gamma, n, n_cmd):
     """Calculates [dx/dt, dz/dt, dv/dt, dgamma/dt, dn/dt] for a given state."""
@@ -388,7 +446,16 @@ def simulate(tMax, simPilot=PILOT_SMOOTH):
     pilot = simPilot
     initializeState()
 
-    history = {"t": [], "x": [], "z": [], "v": [], "gamma": [], "n": [], "n_cmd": [], "E_h": [], "E_h_detrended": []}
+    history = {"t": [], 
+               "x": [], 
+               "z": [], 
+               "v": [], 
+               "gamma": [], 
+               "n": [], 
+               "n_cmd": [], 
+               "E_h": [], 
+               "E_h_detrended": []
+               }
     history['simulationOK'] = True
 
     while state_t < tMax:
@@ -411,34 +478,56 @@ def simulate(tMax, simPilot=PILOT_SMOOTH):
     return history
 
 if __name__ == '__main__':
-    # 1. Turn on interactive mode
+    # interactive mode
     plt.ion()
 
-    # 2. Set up the figure and axis
+    dataX = 'x'
+    dataY = 'v'
+
+    # Set up the figure and axis
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.set_title("Live Multi-Series Plot")
-    ax.set_xlabel("X Axis")
-    ax.set_ylabel("Y Axis")
+    ax.set_xlabel(dataX)
+    ax.set_ylabel(dataY)
     ax.grid(True)
+
+    # Plot ideal maccready stf
+    #maccready_x = range(0,1400,10)
+    #maccready_v = [maccreadyDolphinSpeed(x, 49)[0] for x in maccready_x]
+    #ax.plot(maccready_x, maccready_v, label='Maccready')
+    #ax.legend(loc='lower right')
 
     pilots = (PILOT_BLOCK, PILOT_SMOOTH, PILOT_OPTIMIZED, PILOT_AGGRESSIVE, PILOT_CHEATER)
 
-    # 3. Your generation loop
     for p in pilots:
         data = simulate(30.0, p)
-        x = data['x']
-        y = data['E_h_detrended']
-        
-        # Plot the new series (Matplotlib automatically handles the color change)
-        ax.plot(x, y, label=f'{p.name}')
-        
-        # Optional: Update the legend dynamically to include the new series
-        ax.legend(loc="lower right")
-        
-        # 4. Critical: Force Matplotlib to redraw the frame and pause
-        plt.draw()
-        plt.pause(0.5)  # Pause for 0.5 seconds to see the line appear live
+        x = data[dataX]
+        y = data[dataY]
 
-    # 5. Keep the final window open when the loop finishes
+        # Remove the initial offset
+        if False:
+            y = [yy - y[0] for yy in y]
+
+        # Plot x,y and update legend
+        ax.plot(x, y, label=f'{p.name}')
+        ax.legend(loc="lower right")
+
+        # Annotate last point
+        if False:
+            lastPoint = (x[-1], y[-1])
+            lastPointLabel = f'{lastPoint[1]:.2f}'
+            ax.annotate(
+                text=lastPointLabel,
+                xy=lastPoint,
+                xytext=(10, 5),                # Offset the text by 10 points right, 5 points up
+                textcoords='offset points',    # Tells matplotlib to interpret xytext as pixel/point offsets
+                fontsize=10,
+                fontweight='bold'
+            )
+        
+        # Force Matplotlib to redraw the frame and pause
+        plt.draw()
+
+    # Keep the final window open when the loop finishes
     plt.ioff()
     plt.show()
