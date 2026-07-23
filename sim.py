@@ -510,9 +510,9 @@ if __name__ == '__main__':
     #fig, ax = plt.subplots(figsize=(8, 5))
     fig = plt.figure()
 
-    dataKeysToPlot = [('x','E_h_detrended'), ('x', 'v'), ('x', 'n')]
-    numRows = len(dataKeysToPlot)
-    numCols = 1
+    dataKeysToPlot = [('x','E_h_detrended'), ('x', 'v'), ('x', 'n'), ('x', 'cl'), ('x', 'cd')]
+    numCols = 2
+    numRows = int((len(dataKeysToPlot) + numCols - 1) / numCols)
     axes = []
     for (keyX, keyY) in dataKeysToPlot:
         ax = fig.add_subplot(numRows, numCols, len(axes) + 1)
@@ -531,10 +531,15 @@ if __name__ == '__main__':
 
     for p in pilots:
         data = simulate(30.0, p)
+        # Add some things to the data to visualize
+        data['cl'] = [commandedLiftCoefficient(n, v) for n,v in zip(data['n'], data['v'])]
+        data['cd'] = [cd0(cl) + cdi(cl) for cl in data['cl']]
 
         for (ax, (keyX, keyY)) in zip(axes, dataKeysToPlot):
             annotateLastPoint = keyX == 'E_h_detrended'
             plot(ax, data[keyX], data[keyY])
+            if keyY == 'cl':
+                ax.axhline(y=0.281, color='gray', linestyle='--')
         
         # Force Matplotlib to redraw the frame and pause
         plt.draw()
