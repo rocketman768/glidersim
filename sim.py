@@ -22,6 +22,7 @@ Output:
 
 import math
 from dataclasses import dataclass
+import matplotlib.pyplot as plt
 
 # Physical constants
 rho = 1.22 # kg/m^2
@@ -353,6 +354,9 @@ def advanceState():
     
     state_t += dt
 
+def energyAsHeight():
+    return state_z + state_v ** 2 / (2 * g)
+
 def detrendedEnergyHeight():
     # Adjust the total energy height for maccready
     w_mc = impliedMacCready(targetCruise_v)
@@ -384,7 +388,7 @@ def simulate(tMax, simPilot=PILOT_SMOOTH):
     pilot = simPilot
     initializeState()
 
-    history = {"t": [], "x": [], "z": [], "v": [], "gamma": [], "n": [], "n_cmd": [], "E_h_detrended": []}
+    history = {"t": [], "x": [], "z": [], "v": [], "gamma": [], "n": [], "n_cmd": [], "E_h": [], "E_h_detrended": []}
     history['simulationOK'] = True
 
     while state_t < tMax:
@@ -395,6 +399,7 @@ def simulate(tMax, simPilot=PILOT_SMOOTH):
         history['gamma'].append(state_gamma)
         history['n'].append(state_n)
         history['n_cmd'].append(state_nCmd)
+        history['E_h'].append(energyAsHeight())
         history['E_h_detrended'].append(detrendedEnergyHeight())
         try:
             advanceState()
@@ -406,7 +411,34 @@ def simulate(tMax, simPilot=PILOT_SMOOTH):
     return history
 
 if __name__ == '__main__':
-    initializeState()
-    while state_t < 30.0:
-        printState()
-        advanceState()
+    # 1. Turn on interactive mode
+    plt.ion()
+
+    # 2. Set up the figure and axis
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.set_title("Live Multi-Series Plot")
+    ax.set_xlabel("X Axis")
+    ax.set_ylabel("Y Axis")
+    ax.grid(True)
+
+    pilots = (PILOT_BLOCK, PILOT_SMOOTH, PILOT_OPTIMIZED, PILOT_AGGRESSIVE, PILOT_CHEATER)
+
+    # 3. Your generation loop
+    for p in pilots:
+        data = simulate(30.0, p)
+        x = data['x']
+        y = data['E_h_detrended']
+        
+        # Plot the new series (Matplotlib automatically handles the color change)
+        ax.plot(x, y, label=f'{p.name}')
+        
+        # Optional: Update the legend dynamically to include the new series
+        ax.legend(loc="lower right")
+        
+        # 4. Critical: Force Matplotlib to redraw the frame and pause
+        plt.draw()
+        plt.pause(0.5)  # Pause for 0.5 seconds to see the line appear live
+
+    # 5. Keep the final window open when the loop finishes
+    plt.ioff()
+    plt.show()
