@@ -90,25 +90,25 @@ PILOT_SMOOTH = PilotProfile(
 PILOT_AGGRESSIVE = PilotProfile(
     name="AggroCraig",
     kp=0.07141414141414142,
-    kd=0.3797979797979798,
-    targetDolphin_v=26.454545454545453,
+    kd=0.38787878787878793,
+    targetDolphin_v=25.0,
     n_max=2.0,
     n_min=0.5,
-    v_pullThresh=1.1868686868686869,
+    v_pullThresh=1.0101010101010102,
     v_pushThresh=1.9696969696969697,
 )
 
 PILOT_CHEATER = PilotProfile(
     name="Cheater",
-    kp=0.14242424242424245,
-    kd=0.5171717171717173,
-    targetDolphin_v=33.72727272727273,
-    n_max=3.0,
-    n_min=0.0,
+    kp=0.16161616161616163,
+    kd=0.4444444444444445,
+    targetDolphin_v=25.0,
+    n_max=2.758787878787879,
+    n_min=0.6545454545454545,
     v_pullThresh=0,
     v_pushThresh=0,
-    x_cheaterPull=407.57575757575756,
-    x_cheaterPush=489.8989898989899,
+    x_cheaterPull=431.8181818181818,
+    x_cheaterPush=552.5252525252525,
 )
 
 PILOT_OPTIMIZED = PilotProfile(
@@ -123,7 +123,11 @@ PILOT_OPTIMIZED = PilotProfile(
 )
 
 # Pick the pilot!
-pilot = PILOT_AGGRESSIVE
+pilot = PILOT_CHEATER
+
+class SimulationError(Exception):
+    """Raised when the simulation enters an unphysical or numerical singularity state."""
+    pass
 
 # Pitch angle for given speed and loading
 def steadyStateGamma(v, n_cmd):
@@ -158,6 +162,16 @@ def w_allen(x):
     # Allen formula
     return w_peak * (1.0 - norm_r**2) * math.exp(-(norm_r**2))
 
+def dw_dx_allen(x):
+    x_c = thermalCenter
+    r0 = thermalWidth / 3        # Radius of zero-lift crossover
+    w_peak = thermalVelocity     # Peak core lift (m/s)
+
+    u = (x - x_c) / r0
+
+    u_sq = u * u
+    return (w_peak / r0) * 2.0 * u * (u_sq - 2.0) * math.exp(-u_sq)
+
 # Air motion model in vertical m/s
 def w(x):
     return w_allen(x)
@@ -166,6 +180,7 @@ def dw_dx(x):
     """Central difference derivative of w(x)."""
     dx_step = 0.01
     return (w(x + dx_step) - w(x - dx_step)) / (2.0 * dx_step)
+    #return dw_dx_allen(x)
 
 def q(v):
     return 0.5 * rho * v * v
@@ -283,8 +298,14 @@ def controlUpdate():
     return max(n_min, min(n_max, n_cmd))
 
 def advanceState():
-    global state_t, state_x, state_z, state_v, state_gamma, state_n, state_nCmd
     # RK4 update
+    global state_t, state_x, state_z, state_v, state_gamma, state_n, state_nCmd
+
+    # We have a simulation singularity at state_v = 0 where cl becomes infinite.
+    # We must stop early on such singularities
+    cl = commandedLiftCoefficient(state_n, max(1e-3, state_v))
+    if cl > 5.0:
+        raise SimulationError("Glider is deeply stalled")
 
     # 1. Update control input based on current state
     state_nCmd = controlUpdate()
@@ -350,12 +371,12 @@ def printState():
     x_ft = state_x * 3.28
     z_ft = state_z * 3.28
     pitch_deg = state_gamma / math.pi * 180.0
-    #print(f'{state_t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}\t{state_n:.1f}')
+    print(f'{state_t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}\t{state_n:.1f}')
 
-    delta_E_h = detrendedEnergyHeight()
+    #delta_E_h = detrendedEnergyHeight()
 
-    delta_E_h_ft = delta_E_h * 3.28
-    print(f'{x_ft:.0f}\t{delta_E_h_ft:.0f}')
+    #delta_E_h_ft = delta_E_h * 3.28
+    #print(f'{x_ft:.0f}\t{delta_E_h_ft:.0f}')
 
 def simulate(tMax, simPilot=PILOT_SMOOTH):
     global pilot
@@ -364,6 +385,7 @@ def simulate(tMax, simPilot=PILOT_SMOOTH):
     initializeState()
 
     history = {"t": [], "x": [], "z": [], "v": [], "gamma": [], "n": [], "n_cmd": [], "E_h_detrended": []}
+    history['simulationOK'] = True
 
     while state_t < tMax:
         history['t'].append(state_t)
@@ -374,7 +396,12 @@ def simulate(tMax, simPilot=PILOT_SMOOTH):
         history['n'].append(state_n)
         history['n_cmd'].append(state_nCmd)
         history['E_h_detrended'].append(detrendedEnergyHeight())
-        advanceState()
+        try:
+            advanceState()
+        except SimulationError as e:
+            print(f'Simulation error. Stopping early. Reason: {e}')
+            history['simulationOK'] = False
+            raise
     
     return history
 
