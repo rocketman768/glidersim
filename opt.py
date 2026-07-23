@@ -38,13 +38,13 @@ if __name__ == '__main__':
     #coordsToOptimize = (2,3,4,5,6,0,1)
 
     # SmoothOperator
-    #x = [0.10, 0.38, 28.0, 1.2, 0.8, 1, 1]
-    #coordsToOptimize = (2,5,6,0,1)
+    x = [0.10, 0.38, 28.0, 3.0, 0.0, 0.5, 0.5]
+    coordsToOptimize = (2,5,6,0,1)
 
     # Cheater
-    x.append(350)
-    x.append(550)
-    coordsToOptimize = (2,3,4,7,8,0,1)
+    #x.append(350)
+    #x.append(550)
+    #coordsToOptimize = (2,3,4,7,8,0,1)
 
     for round in range(n_rounds):
         print(f'= Round {round} ==')

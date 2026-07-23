@@ -89,37 +89,37 @@ PILOT_SMOOTH = PilotProfile(
 
 PILOT_AGGRESSIVE = PilotProfile(
     name="AggroCraig",
-    kp=0.07141414141414142,
-    kd=0.38787878787878793,
-    targetDolphin_v=25.0,
+    kp=0.10404040404040404,
+    kd=0.5252525252525253,
+    targetDolphin_v=29.363636363636363,
     n_max=2.0,
     n_min=0.5,
-    v_pullThresh=1.0101010101010102,
-    v_pushThresh=1.9696969696969697,
+    v_pullThresh=1.5404040404040402,
+    v_pushThresh=2.095959595959596,
 )
 
 PILOT_CHEATER = PilotProfile(
     name="Cheater",
-    kp=0.16161616161616163,
-    kd=0.4444444444444445,
-    targetDolphin_v=25.0,
-    n_max=2.758787878787879,
-    n_min=0.6545454545454545,
+    kp=0.2,
+    kd=0.5171717171717173,
+    targetDolphin_v=41.72727272727273,
+    n_max=2.5979797979797983,
+    n_min=0.5727272727272728,
     v_pullThresh=0,
     v_pushThresh=0,
-    x_cheaterPull=431.8181818181818,
-    x_cheaterPush=552.5252525252525,
+    x_cheaterPull=404.54545454545456,
+    x_cheaterPush=486.86868686868684,
 )
 
 PILOT_OPTIMIZED = PilotProfile(
     name="Maverick",
-    kp=0.1481818181818182,
-    kd=0.5171717171717173,
-    targetDolphin_v=34.45454545454545,
+    kp=0.06565656565656565,
+    kd=0.29090909090909095,
+    targetDolphin_v=25.0,
     n_max=3.0,
     n_min=0.0,
-    v_pullThresh=1.691919191919192,
-    v_pushThresh=1.7171717171717171,
+    v_pullThresh=1.5151515151515151,
+    v_pushThresh=1.5656565656565657,
 )
 
 # Pick the pilot!
