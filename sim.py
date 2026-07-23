@@ -478,6 +478,28 @@ def simulate(tMax, simPilot=PILOT_SMOOTH):
     return history
 
 if __name__ == '__main__':
+
+    def plot(ax, x, y, removeOffset=False, annotateLastPoint=False):
+        # Remove the initial offset
+        if removeOffset:
+            y = [yy - y[0] for yy in y]
+
+        # Plot x,y and update legend
+        ax.plot(x, y, label=f'{p.name}')
+        ax.legend(loc="lower right")
+
+        # Annotate last point
+        if annotateLastPoint:
+            lastPoint = (x[-1], y[-1])
+            lastPointLabel = f'{lastPoint[1]:.2f}'
+            ax.annotate(
+                text=lastPointLabel,
+                xy=lastPoint,
+                xytext=(10, 5),                # Offset the text by 10 points right, 5 points up
+                textcoords='offset points',    # Tells matplotlib to interpret xytext as pixel/point offsets
+                fontsize=10,
+                fontweight='bold'
+            )
     # interactive mode
     plt.ion()
 
@@ -485,11 +507,19 @@ if __name__ == '__main__':
     dataY = 'v'
 
     # Set up the figure and axis
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.set_title("Live Multi-Series Plot")
-    ax.set_xlabel(dataX)
-    ax.set_ylabel(dataY)
-    ax.grid(True)
+    #fig, ax = plt.subplots(figsize=(8, 5))
+    fig = plt.figure()
+
+    dataKeysToPlot = [('x','E_h_detrended'), ('x', 'v'), ('x', 'n')]
+    numRows = len(dataKeysToPlot)
+    numCols = 1
+    axes = []
+    for (keyX, keyY) in dataKeysToPlot:
+        ax = fig.add_subplot(numRows, numCols, len(axes) + 1)
+        ax.set_xlabel(keyX)
+        ax.set_ylabel(keyY)
+        ax.grid(True)
+        axes.append(ax)
 
     # Plot ideal maccready stf
     #maccready_x = range(0,1400,10)
@@ -501,29 +531,10 @@ if __name__ == '__main__':
 
     for p in pilots:
         data = simulate(30.0, p)
-        x = data[dataX]
-        y = data[dataY]
 
-        # Remove the initial offset
-        if False:
-            y = [yy - y[0] for yy in y]
-
-        # Plot x,y and update legend
-        ax.plot(x, y, label=f'{p.name}')
-        ax.legend(loc="lower right")
-
-        # Annotate last point
-        if False:
-            lastPoint = (x[-1], y[-1])
-            lastPointLabel = f'{lastPoint[1]:.2f}'
-            ax.annotate(
-                text=lastPointLabel,
-                xy=lastPoint,
-                xytext=(10, 5),                # Offset the text by 10 points right, 5 points up
-                textcoords='offset points',    # Tells matplotlib to interpret xytext as pixel/point offsets
-                fontsize=10,
-                fontweight='bold'
-            )
+        for (ax, (keyX, keyY)) in zip(axes, dataKeysToPlot):
+            annotateLastPoint = keyX == 'E_h_detrended'
+            plot(ax, data[keyX], data[keyY])
         
         # Force Matplotlib to redraw the frame and pause
         plt.draw()
