@@ -20,8 +20,8 @@ def f(x, isCheater: bool = False):
             targetDolphin_v=25.0,
             n_max=3.0,
             n_min=1.0,
-            v_pullThresh=0,
-            v_pushThresh=0,
+            dw_dx_pullThresh=0,
+            dw_dx_pushThresh=0,
             nCmd_cheater=nCmdCheater_init,
             nCmd_x_cheater=xCheater_init
         )
@@ -34,8 +34,8 @@ def f(x, isCheater: bool = False):
             targetDolphin_v=x[2],
             n_max=x[3],
             n_min=x[4],
-            v_pullThresh=x[5],
-            v_pushThresh=x[6]
+            dw_dx_pullThresh=x[5],
+            dw_dx_pushThresh=x[6]
         )
 
     try:
@@ -90,10 +90,10 @@ def optimizeCheater():
 
 def optimizePilot():
     #       [ 0,   1,    2,    3,    4,     5,     6]
-    #       [ kp, kd, vdol, nmax, nmin, vpull, vpush]
-    x0    = [0.10, 0.38, 28.0, 3.0, 0.0, 0, 0]
-    x_min = [0.01, 0.0, 25.0, 1.01, 0.0, 0.0, 0.0]
-    x_max = [0.2, 0.8, 49.0, 3.0, 0.9, 2.5, 2.5]
+    #       [ kp, kd, vdol, nmax, nmin, shearpull, shearpush]
+    x0    = [0.10, 0.38, 28.0, 1.2, 0.8, 1e-3, -1e-3]
+    x_min = [0.01, 0.0, 25.0, 1.01, 0.0, 0.0, -5e-2]
+    x_max = [0.2, 0.8, 49.0, 3.0, 0.9, 5e-2, 0.0]
 
     def objFun(arg):
         x = [float(a) for a in arg]

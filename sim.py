@@ -46,6 +46,7 @@ state_v = None # m/s
 state_gamma = None # radians (note: initialize this to proper steady-state for x/z/v)
 state_nCmd = 1.0 # Commanded Gs of acceleration
 state_n = 1.0 # Gs of acceleration. Control input.
+state_pilot = None # CRUISE, PULLUP, COAST, PUSHOVER
 
 # Simulation constants
 dt = 0.1 # s
@@ -63,10 +64,8 @@ class PilotProfile:
     targetDolphin_v: float # Target dolphin speed (m/s)
     n_max: float   # Upper load factor limit (g)
     n_min: float   # Lower load factor limit (g)
-    v_pullThresh: float # Pilot pulls once the thermal is stronger than this (m/s)
-    v_pushThresh: float # Pilot pushes once the thermal becomes weaker than this (m/s)
-    x_cheaterPull: float = None
-    x_cheaterPush: float = None
+    dw_dx_pullThresh: float # Pilot pulls once the thermal is stronger than this (m/s/m)
+    dw_dx_pushThresh: float # Pilot pushes once the thermal becomes weaker than this (m/s/m)
     nCmd_cheater: list[float] = None
     nCmd_x_cheater: list[float] = None
 
@@ -77,30 +76,30 @@ PILOT_BLOCK = PilotProfile(
     targetDolphin_v=targetCruise_v,
     n_max=1.2,
     n_min=0.8,
-    v_pullThresh=1.5,
-    v_pushThresh=1.5,
+    dw_dx_pullThresh=1e-3,
+    dw_dx_pushThresh=-1e-3,
 )
 
 PILOT_SMOOTH = PilotProfile(
     name="SmoothOperator",
-    kp=0.06410201274492716,
-    kd=0.295866090447621,
-    targetDolphin_v=28.218404380057063,
+    kp=0.06851503847104298,
+    kd=0.3077480513519549,
+    targetDolphin_v=27.769097025277762,
     n_max=1.2,
     n_min=0.8,
-    v_pullThresh=0.007366728169413211,
-    v_pushThresh=1.0796570287368839,
+    dw_dx_pullThresh=0.013294787236683836,
+    dw_dx_pushThresh=-0.03415305866860502,
 )
 
 PILOT_AGGRESSIVE = PilotProfile(
     name="AggroCraig",
-    kp=0.06189014822915294,
-    kd=0.2916485859517913,
+    kp=0.06189014823019966,
+    kd=0.2916485859478868,
     targetDolphin_v=25.00000000001756,
     n_max=2.0,
     n_min=0.5,
-    v_pullThresh=1.0526622954497928,
-    v_pushThresh=2.057131979442064,
+    dw_dx_pullThresh=0.03412205161454471,
+    dw_dx_pushThresh=-0.027663562107475004,
 )
 
 PILOT_CHEATER = PilotProfile(
@@ -110,21 +109,21 @@ PILOT_CHEATER = PilotProfile(
     targetDolphin_v=25,
     n_max=3.0,
     n_min=0,
-    v_pullThresh=0,
-    v_pushThresh=0,
+    dw_dx_pullThresh=1e-3,
+    dw_dx_pushThresh=-1e-3,
     nCmd_x_cheater=simCheater.initialCheaterParameters(thermalCenter, thermalWidth)[0],
     nCmd_cheater=simCheater.initialCheaterParameters(thermalCenter, thermalWidth)[1],
 )
 
 PILOT_OPTIMIZED = PilotProfile(
     name="Maverick",
-    kp=0.05694982986259977,
-    kd=0.21789792189535095,
+    kp=0.04563722433027138,
+    kd=0.22866822764948286,
     targetDolphin_v=25.0,
     n_max=3.0,
     n_min=0.0,
-    v_pullThresh=1.5974206579704324,
-    v_pushThresh=1.843685488105037,
+    dw_dx_pullThresh=0.0341850338637025,
+    dw_dx_pushThresh=-0.03307259837844302,
 )
 
 # Pick the pilot!
@@ -142,13 +141,14 @@ def steadyStateGamma(v, n_cmd):
     return math.asin(-drag / (m * g))
 
 def initializeState():
-    global state_t, state_x, state_z, state_v, state_gamma, state_n
+    global state_t, state_x, state_z, state_v, state_gamma, state_n, state_pilot
     state_t = 0.0 # s
     state_x = 0.0 # m
     state_z = 0.0 # m
     state_v = targetCruise_v # m/s
     state_n = 1.0 # m/s
     state_gamma = steadyStateGamma(state_v, state_n)
+    state_pilot = 'CRUISE'
 
 def w_box(x):
     if x < thermalCenter - thermalWidth/2 or x > thermalCenter + thermalWidth/2:
@@ -160,10 +160,8 @@ def w_allen(x):
     x_c = thermalCenter
     r0 = thermalWidth / 3        # Radius of zero-lift crossover
     w_peak = thermalVelocity     # Peak core lift (m/s)
-    
     r = abs(x - x_c)
     norm_r = r / r0
-    
     # Allen formula
     return w_peak * (1.0 - norm_r**2) * math.exp(-(norm_r**2))
 
@@ -171,9 +169,7 @@ def dw_dx_allen(x):
     x_c = thermalCenter
     r0 = thermalWidth / 3        # Radius of zero-lift crossover
     w_peak = thermalVelocity     # Peak core lift (m/s)
-
     u = (x - x_c) / r0
-
     u_sq = u * u
     return (w_peak / r0) * 2.0 * u * (u_sq - 2.0) * math.exp(-u_sq)
 
@@ -344,6 +340,7 @@ def controlUpdate_cheater():
     return (1-a) * nleft + a * nright
 
 def controlUpdate():
+    global state_pilot
     if pilot.nCmd_cheater and pilot.nCmd_x_cheater:
         return controlUpdate_cheater()
 
@@ -353,8 +350,8 @@ def controlUpdate():
     kd = pilot.kd
     n_max = pilot.n_max
     n_min = pilot.n_min
-    v_pullThresh = max(0, pilot.v_pullThresh)
-    v_pushThresh = max(0, pilot.v_pushThresh)
+    dw_dx_pullThresh = pilot.dw_dx_pullThresh
+    dw_dx_pushThresh = pilot.dw_dx_pushThresh
     targetDolphin_v = pilot.targetDolphin_v
 
     # We need the velocity derivative. (pass dummy 0.0 for n_cmd since dv/dt doesn't use it)
@@ -362,18 +359,27 @@ def controlUpdate():
 
     localShear = dw_dx(state_x)
     localW = w(state_x)
-    if localShear >= 0:
-        # Either coming in to the core or exiting the sink on the far side
-        if localW < v_pullThresh:
-            target_v = targetCruise_v
-        else:
-            target_v = targetDolphin_v
-    elif localShear < 0:
-        # Either passing the core or entering the sink on the near side
-        if localW < v_pushThresh:
-            target_v = targetCruise_v
-        else:
-            target_v = targetDolphin_v
+
+    # Pull-up trigger on entry gradient
+    if localShear > dw_dx_pullThresh and state_pilot == 'CRUISE':
+        state_pilot = 'PULLUP'
+    # Stop pulling if airspeed drops to target dolphin speed
+    elif state_pilot == 'PULLUP' and state_v <= targetDolphin_v:
+        state_pilot = 'COAST'  # Holds 1.0g through the core
+    # Push-over trigger on exit shear gradient
+    elif localShear < dw_dx_pushThresh and state_pilot in ('PULLUP', 'COAST'):
+        state_pilot = 'PUSHOVER'
+    # Return to cruise once airspeed is fully recovered
+    elif state_pilot == 'PUSHOVER' and state_v >= targetCruise_v:
+        state_pilot = 'CRUISE'
+
+    if state_pilot in ('CRUISE', 'PUSHOVER'):
+        target_v = targetCruise_v
+    else:
+        target_v = targetDolphin_v
+
+    #if pilot.name == 'Maverick':
+    #    print(f'{state_pilot} {localShear:.4f} {state_v:.1f}')
 
     # Proportional term   
     n_cmd = 1.0 + kp * (state_v - target_v)
