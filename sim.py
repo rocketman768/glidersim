@@ -83,24 +83,24 @@ PILOT_BLOCK = PilotProfile(
 
 PILOT_SMOOTH = PilotProfile(
     name="SmoothOperator",
-    kp=0.10404040404040404,
-    kd=0.7757575757575759,
-    targetDolphin_v=25.0,
+    kp=0.06410201274492716,
+    kd=0.295866090447621,
+    targetDolphin_v=28.218404380057063,
     n_max=1.2,
     n_min=0.8,
-    v_pullThresh=0.0,
-    v_pushThresh=0.9848484848484849,
+    v_pullThresh=0.007366728169413211,
+    v_pushThresh=1.0796570287368839,
 )
 
 PILOT_AGGRESSIVE = PilotProfile(
     name="AggroCraig",
-    kp=0.10404040404040404,
-    kd=0.5252525252525253,
-    targetDolphin_v=29.363636363636363,
+    kp=0.06189014822915294,
+    kd=0.2916485859517913,
+    targetDolphin_v=25.00000000001756,
     n_max=2.0,
     n_min=0.5,
-    v_pullThresh=1.5404040404040402,
-    v_pushThresh=2.095959595959596,
+    v_pullThresh=1.0526622954497928,
+    v_pushThresh=2.057131979442064,
 )
 
 PILOT_CHEATER = PilotProfile(
@@ -118,13 +118,13 @@ PILOT_CHEATER = PilotProfile(
 
 PILOT_OPTIMIZED = PilotProfile(
     name="Maverick",
-    kp=0.06565656565656565,
-    kd=0.29090909090909095,
+    kp=0.05694982986259977,
+    kd=0.21789792189535095,
     targetDolphin_v=25.0,
     n_max=3.0,
     n_min=0.0,
-    v_pullThresh=1.5151515151515151,
-    v_pushThresh=1.5656565656565657,
+    v_pullThresh=1.5974206579704324,
+    v_pushThresh=1.843685488105037,
 )
 
 # Pick the pilot!
