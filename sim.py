@@ -21,8 +21,10 @@ Output:
 """
 
 import math
+import sys
 from dataclasses import dataclass
 import matplotlib.pyplot as plt
+import simCheater
 
 # Physical constants
 rho = 1.22 # kg/m^2
@@ -65,6 +67,8 @@ class PilotProfile:
     v_pushThresh: float # Pilot pushes once the thermal becomes weaker than this (m/s)
     x_cheaterPull: float = None
     x_cheaterPush: float = None
+    nCmd_cheater: list[float] = None
+    nCmd_x_cheater: list[float] = None
 
 PILOT_BLOCK = PilotProfile(
     name="Block STF",
@@ -101,15 +105,15 @@ PILOT_AGGRESSIVE = PilotProfile(
 
 PILOT_CHEATER = PilotProfile(
     name="Cheater",
-    kp=0.2,
-    kd=0.5171717171717173,
-    targetDolphin_v=41.72727272727273,
-    n_max=2.5979797979797983,
-    n_min=0.5727272727272728,
+    kp=0,
+    kd=0,
+    targetDolphin_v=25,
+    n_max=3.0,
+    n_min=0,
     v_pullThresh=0,
     v_pushThresh=0,
-    x_cheaterPull=404.54545454545456,
-    x_cheaterPush=486.86868686868684,
+    nCmd_x_cheater=simCheater.initialCheaterParameters(thermalCenter, thermalWidth)[0],
+    nCmd_cheater=simCheater.initialCheaterParameters(thermalCenter, thermalWidth)[1],
 )
 
 PILOT_OPTIMIZED = PilotProfile(
@@ -314,7 +318,35 @@ def derivatives(x, z, v, gamma, n, n_cmd):
 
     return dx_dt, dz_dt, dv_dt, dgamma_dt, dn_dt
 
+def controlUpdate_cheater():
+    x = pilot.nCmd_x_cheater
+    n = pilot.nCmd_cheater
+
+    def findNdx():
+        for ndx, x0 in enumerate(x):
+            if x0 > state_x:
+                return max(0, ndx - 1)
+        return len(x) - 1
+
+    ndx = findNdx()
+    if ndx < 0:
+        return n[0]
+    if ndx >= len(x) - 1:
+        return n[-1]
+
+    # linear n for each dx segment
+    xleft = x[ndx]
+    xright = x[ndx+1]
+    a = (state_x - xleft) / (xright - xleft)
+    nleft = n[ndx]
+    nright = n[ndx+1]
+
+    return (1-a) * nleft + a * nright
+
 def controlUpdate():
+    if pilot.nCmd_cheater and pilot.nCmd_x_cheater:
+        return controlUpdate_cheater()
+
     # 0.2 per 2 m/s
     kp = pilot.kp
     # Tune to prevent overshoot
@@ -328,26 +360,20 @@ def controlUpdate():
     # We need the velocity derivative. (pass dummy 0.0 for n_cmd since dv/dt doesn't use it)
     _, _, v_dot, _, _ = derivatives(state_x, state_z, state_v, state_gamma, state_n, 0.0)
 
-    #target_v = targetDolphin_v if w(state_x + x_lookahead) > 0 else targetCruise_v
-
-    if pilot.x_cheaterPull and pilot.x_cheaterPush:
-        # Just for demo, someone who can know the exact position to push and pull for this thermal
-        target_v = targetDolphin_v if state_x > pilot.x_cheaterPull and state_x < pilot.x_cheaterPush else targetCruise_v
-    else:
-        localShear = dw_dx(state_x)
-        localW = w(state_x)
-        if localShear >= 0:
-            # Either coming in to the core or exiting the sink on the far side
-            if localW < v_pullThresh:
-                target_v = targetCruise_v
-            else:
-                target_v = targetDolphin_v
-        elif localShear < 0:
-            # Either passing the core or entering the sink on the near side
-            if localW < v_pushThresh:
-                target_v = targetCruise_v
-            else:
-                target_v = targetDolphin_v
+    localShear = dw_dx(state_x)
+    localW = w(state_x)
+    if localShear >= 0:
+        # Either coming in to the core or exiting the sink on the far side
+        if localW < v_pullThresh:
+            target_v = targetCruise_v
+        else:
+            target_v = targetDolphin_v
+    elif localShear < 0:
+        # Either passing the core or entering the sink on the near side
+        if localW < v_pushThresh:
+            target_v = targetCruise_v
+        else:
+            target_v = targetDolphin_v
 
     # Proportional term   
     n_cmd = 1.0 + kp * (state_v - target_v)
@@ -471,7 +497,7 @@ def simulate(tMax, simPilot=PILOT_SMOOTH):
         try:
             advanceState()
         except SimulationError as e:
-            print(f'Simulation error. Stopping early. Reason: {e}')
+            print(f'Simulation error. Stopping early. Reason: {e}', file=sys.stderr)
             history['simulationOK'] = False
             raise
     
@@ -510,7 +536,7 @@ if __name__ == '__main__':
     #fig, ax = plt.subplots(figsize=(8, 5))
     fig = plt.figure()
 
-    dataKeysToPlot = [('x','E_h_detrended'), ('x', 'v'), ('x', 'n'), ('x', 'cl'), ('x', 'cd')]
+    dataKeysToPlot = [('x','E_h_detrended'), ('x', 'v'), ('x', 'n'), ('x', 'n_cmd'), ('x', 'cl'), ('x', 'cd')]
     numCols = 2
     numRows = int((len(dataKeysToPlot) + numCols - 1) / numCols)
     axes = []
