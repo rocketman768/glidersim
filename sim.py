@@ -82,24 +82,24 @@ PILOT_BLOCK = PilotProfile(
 
 PILOT_SMOOTH = PilotProfile(
     name="SmoothOperator",
-    kp=0.06851503847104298,
-    kd=0.3077480513519549,
-    targetDolphin_v=27.769097025277762,
+    kp=0.017269494548686513,
+    kd=0.009288804941364644,
+    targetDolphin_v=25.0,
     n_max=1.2,
     n_min=0.8,
-    dw_dx_pullThresh=0.013294787236683836,
-    dw_dx_pushThresh=-0.03415305866860502,
+    dw_dx_pullThresh=0.004616814427957397,
+    dw_dx_pushThresh=-0.01020278424458272,
 )
 
 PILOT_AGGRESSIVE = PilotProfile(
     name="AggroCraig",
-    kp=0.06189014823019966,
-    kd=0.2916485859478868,
-    targetDolphin_v=25.00000000001756,
+    kp=0.022604656979228612,
+    kd=0.16349212404581956,
+    targetDolphin_v=28.1387843378532,
     n_max=2.0,
     n_min=0.5,
-    dw_dx_pullThresh=0.03412205161454471,
-    dw_dx_pushThresh=-0.027663562107475004,
+    dw_dx_pullThresh=0.01845927517812618,
+    dw_dx_pushThresh=-0.03215666579929182,
 )
 
 PILOT_CHEATER = PilotProfile(
@@ -117,13 +117,13 @@ PILOT_CHEATER = PilotProfile(
 
 PILOT_OPTIMIZED = PilotProfile(
     name="Maverick",
-    kp=0.04563722433027138,
-    kd=0.22866822764948286,
-    targetDolphin_v=25.0,
+    kp=0.022611050199927145,
+    kd=0.16352459173030126,
+    targetDolphin_v=27.919185263723563,
     n_max=3.0,
     n_min=0.0,
-    dw_dx_pullThresh=0.0341850338637025,
-    dw_dx_pushThresh=-0.03307259837844302,
+    dw_dx_pullThresh=0.018946715240371833,
+    dw_dx_pushThresh=-0.02635208430781338,
 )
 
 # Pick the pilot!
@@ -355,7 +355,7 @@ def controlUpdate():
     targetDolphin_v = pilot.targetDolphin_v
 
     # We need the velocity derivative. (pass dummy 0.0 for n_cmd since dv/dt doesn't use it)
-    _, _, v_dot, _, _ = derivatives(state_x, state_z, state_v, state_gamma, state_n, 0.0)
+    _, _, dv_dt, _, _ = derivatives(state_x, state_z, state_v, state_gamma, state_n, 0.0)
 
     localShear = dw_dx(state_x)
     localW = w(state_x)
@@ -381,12 +381,70 @@ def controlUpdate():
     #if pilot.name == 'Maverick':
     #    print(f'{state_pilot} {localShear:.4f} {state_v:.1f}')
 
-    # Proportional term   
-    n_cmd = 1.0 + kp * (state_v - target_v)
-    # derivative term
-    n_cmd += kd * v_dot
+    dw_dt = localShear * state_v
+    if state_pilot in ('PULLUP', 'PUSHOVER') and localW > 0:
+        # TODO: get these parameters into the pilot profile
+        pushoverGs = 0.5
+        pullupGs = 2.3
+        maxW = 2.5
+
+        # Want:
+        #   n(t) = k1 + k2 * w(t)
+        # So:
+        #   dn/dt = k2 dw/dt.
+        # Also, from state equations,
+        #   dn/dt = (n_cmd - n) / tau.
+        # So:
+        #   k2 dw/dt = (n_cmd - n) / tau
+        #   k2 dw/dt = (n_cmd - (k1 + k2 w(t))) / tau
+        #   tau k2 dw/dt = n_cmd - k1 - k2 w(t)
+        #   n_cmd = k1 + k2 w(t) + tau * k2 * dw/dt
+        # So:
+        #   k3 = tau * k2
+        # ...for perfect lag cancellation.
+
+        # k1 is how much we push outside of the thermal (when w an dw/dt are 0)
+        k1 = pushoverGs
+        # We want maximum pulling at the core (w = maxW)
+        k2 = (pullupGs - pushoverGs)/maxW
+        # k3 is computed to cancel lag as shown above
+        k3 = k2 * tau_n
+
+        n_cmd = k1 + k2 * localW + k3 * dw_dt
+    else:
+        # Speed control with MacCready target modulation
+        # target_v decreases in lift (w > 0) and increases in sink (w < 0)
+
+        # The sensitivity is how much you should speed up in m/s if there is 1 m/s of sink
+        # at the current airspeed based on maccready analysis of the polar
+        maccreadySensitivity = 6.0
+
+        target_v_dynamic = target_v - maccreadySensitivity * localW
+
+        # I know we are double-adding terms proportional to localW here, but
+        # kp * maccreadySensitivity will simply be to low to make quick airspeed
+        # changes, and it's simply easier to think about first that we should adjust
+        # the target speed, and THEN do some pushing based on the vario.
+
+        # I want continuity between the two controllers at the pull threshold.
+        # Assuming the velocity terms are close to 0...
+        # 1.0 + kw * w_pullThresh = k1 + k2 * w_pullThresh + k3 * dw_dt(w_pullThresh)
+        # Assuming dw_dt \approx 0
+        # kw = k2 + (k1 - 1.0) / w_pullThresh
+        # There is no actual w_pullThresh since we pull based on shear now, so just
+        # assume it's like 2 m/s or ignore it completely and then kw = k2
+
+        # TODO: get these parameters into the pilot profile
+        pushoverGs = 0.5
+        pullupGs = 2.3
+        maxW = 2.5
+        k2 = (pullupGs - pushoverGs)/maxW
+        kw = k2
+
+        n_cmd = 1.0 + kp * (state_v - target_v_dynamic) + kd * dv_dt + kw * localW
+    
     # Clamp
-    return max(n_min, min(n_max, n_cmd))
+    return max(0, min(n_max, n_cmd))
 
 def advanceState():
     # RK4 update
@@ -558,6 +616,18 @@ if __name__ == '__main__':
     #maccready_v = [maccreadyDolphinSpeed(x, 49)[0] for x in maccready_x]
     #ax.plot(maccready_x, maccready_v, label='Maccready')
     #ax.legend(loc='lower right')
+
+    if True:
+        data = simulate(30.0, PILOT_OPTIMIZED)
+        x_w = range(0,1400,10)
+        y_w = [w(x) for x in x_w]
+        y_dw = [10 * dw_dx(x) for x in x_w]
+        figw = plt.figure()
+        ax = figw.add_subplot()
+        ax2 = ax.twinx()
+        ax.plot(x_w, y_w)
+        #ax2.plot(x_w, y_dw, color='red')
+        ax2.plot(data['x'], data['n'], color='red')
 
     pilots = (PILOT_BLOCK, PILOT_SMOOTH, PILOT_OPTIMIZED, PILOT_AGGRESSIVE, PILOT_CHEATER)
 
