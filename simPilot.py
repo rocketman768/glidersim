@@ -149,7 +149,8 @@ class RealisticSimPilot(SimPilot):
         n_max: float,   # Upper load factor limit (g)
         n_min: float,   # Lower load factor limit (g)
         w_pullThresh: float, # Pilot pulls once the thermal is predicted stronger than this (m/s)
-        w_pushThresh: float # Pilot pushes once the thermal is predicted weaker than this (m/s)
+        w_pushThresh: float, # Pilot pushes once the thermal is predicted weaker than this (m/s)
+        allowLoadFactorLimitTuning: bool = False # If True, optimizer can tune n_max/n_min
     ):
         self._name = name
         self._kp = kp
@@ -160,6 +161,7 @@ class RealisticSimPilot(SimPilot):
         self._n_min = n_min
         self._w_pullThresh = w_pullThresh
         self._w_pushThresh = w_pushThresh
+        self.allowLoadFactorLimitTuning = allowLoadFactorLimitTuning
 
         self.reset_state()
 
@@ -279,8 +281,10 @@ simPilot.RealisticSimPilot(
             self._kp,
             self._kd,
             self._targetDolphin_v,
-            #self._n_max,
-            #self._n_min,
+        ] + ([
+            self._n_max,
+            self._n_min
+        ] if self.allowLoadFactorLimitTuning else []) + [
             self._w_pullThresh,
             self._w_pushThresh,
         ]
@@ -291,11 +295,19 @@ simPilot.RealisticSimPilot(
             self._kp,
             self._kd,
             self._targetDolphin_v,
-            #self._n_max,
-            #self._n_min,
-            self._w_pullThresh,
-            self._w_pushThresh,
-        ] = x
+        ] = x[0:3]
+        if self.allowLoadFactorLimitTuning:
+            [
+                self._n_max,
+                self._n_min,
+                self._w_pullThresh,
+                self._w_pushThresh,
+            ] = x[3:]
+        else:
+            [
+                self._w_pullThresh,
+                self._w_pushThresh,
+            ] = x[3:]
 
     @property
     def name(self) -> str:
@@ -306,13 +318,22 @@ simPilot.RealisticSimPilot(
             0.01,
             0.0,
             23.0,
+        ] + ([
+            1.1,
+            -1.0
+        ] if self.allowLoadFactorLimitTuning else []) + [
             0,
             -1.0,
         ]
+
         xmax = [
             1.0,
             4.0,
             70.0,
+        ] + ([
+            5.0,
+            0.95
+        ] if self.allowLoadFactorLimitTuning else []) + [
             10.0,
             10.0,
         ]

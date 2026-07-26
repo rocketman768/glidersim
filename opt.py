@@ -61,6 +61,7 @@ def optimizedPilot(pilot: simPilot.SimPilot):
         return -f(x, pilot)
 
     print(pilot.parameter_limits())
+    print(pilot.parameters)
     (x_min, x_max) = pilot.parameter_limits()
     options = {
         'bounds': [x_min, x_max],
@@ -80,6 +81,7 @@ if __name__ == '__main__':
     opt_pilots = []
     #for pilot in (sim.PILOT_BLOCK, sim.PILOT_SMOOTH, sim.PILOT_AGGRESSIVE, sim.PILOT_OPTIMIZED):
     for pilot in [sim.PILOT_OPTIMIZED]:
+        pilot.allowLoadFactorLimitTuning = True
         pilot = optimizedPilot(pilot)
         opt_pilots.append(pilot)
 

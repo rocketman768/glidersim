@@ -68,14 +68,14 @@ PILOT_AGGRESSIVE = simPilot.RealisticSimPilot(
 
 PILOT_OPTIMIZED = simPilot.RealisticSimPilot(
     name="Maverick",
-    kp=0.017606343202116122,
-    kd=0.13675295649045438,
-    targetDolphin_v=28.69461352158396,
+    kp=0.015863753007310195,
+    kd=0.12937878573210781,
+    targetDolphin_v=28.513083937630796,
     targetCruise_v=49.0,
-    n_max=2.5,
-    n_min=0.0,
-    w_pullThresh=2.7816693254808236,
-    w_pushThresh=0.5904410714865662
+    n_max=2.5379337702392775,
+    n_min=-0.1454778658906548,
+    w_pullThresh=2.782057863915388,
+    w_pushThresh=0.6812879530473452
 )
 
 PILOT_CHEATER = simPilot.CheaterSimPilot(
