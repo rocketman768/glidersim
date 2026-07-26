@@ -74,6 +74,14 @@ def optimizedPilot(pilot: simPilot.SimPilot):
     
     print(f'{objFun(x_best):.4f}')
     print(pilot.parameters)
+    return pilot
 
 if __name__ == '__main__':
-    pilot = optimizedPilot(sim.PILOT_OPTIMIZED)
+    opt_pilots = []
+    #for pilot in (sim.PILOT_BLOCK, sim.PILOT_SMOOTH, sim.PILOT_AGGRESSIVE, sim.PILOT_OPTIMIZED):
+    for pilot in [sim.PILOT_OPTIMIZED]:
+        pilot = optimizedPilot(pilot)
+        opt_pilots.append(pilot)
+
+    for pilot in opt_pilots:
+        print(pilot)

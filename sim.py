@@ -38,44 +38,44 @@ PILOT_BLOCK = simPilot.RealisticSimPilot(
     targetCruise_v=targetCruise_v,
     n_max=1.2,
     n_min=0.8,
-    dw_dx_pullThresh=1e-3,
-    dw_dx_pushThresh=-1e-3,
+    w_pullThresh=2.0,
+    w_pushThresh=0.0,
 )
 
 PILOT_SMOOTH = simPilot.RealisticSimPilot(
     name="SmoothOperator",
-    kp=0.017269494548686513,
-    kd=0.009288804941364644,
-    targetDolphin_v=25.0,
-    targetCruise_v=targetCruise_v,
+    kp=0.11965410743410854,
+    kd=0.9135092815515045,
+    targetDolphin_v=28.29905227678825,
+    targetCruise_v=49.0,
     n_max=1.2,
     n_min=0.8,
-    dw_dx_pullThresh=0.004616814427957397,
-    dw_dx_pushThresh=-0.01020278424458272,
+    w_pullThresh=2.7776698384242495,
+    w_pushThresh=-0.9200110433052546
 )
 
 PILOT_AGGRESSIVE = simPilot.RealisticSimPilot(
     name="AggroCraig",
-    kp=0.022604656979228612,
-    kd=0.16349212404581956,
-    targetDolphin_v=28.1387843378532,
-    targetCruise_v=targetCruise_v,
+    kp=0.037857535877599595,
+    kd=0.20402355352215196,
+    targetDolphin_v=28.67164663452786,
+    targetCruise_v=49.0,
     n_max=2.0,
     n_min=0.5,
-    dw_dx_pullThresh=0.01845927517812618,
-    dw_dx_pushThresh=-0.03215666579929182,
+    w_pullThresh=2.7785569166199466,
+    w_pushThresh=0.46876167327718576
 )
 
 PILOT_OPTIMIZED = simPilot.RealisticSimPilot(
     name="Maverick",
-    kp=0.022611050199927145,
-    kd=0.16352459173030126,
-    targetDolphin_v=27.919185263723563,
-    targetCruise_v=targetCruise_v,
-    n_max=3.0,
+    kp=0.017606343202116122,
+    kd=0.13675295649045438,
+    targetDolphin_v=28.69461352158396,
+    targetCruise_v=49.0,
+    n_max=2.5,
     n_min=0.0,
-    dw_dx_pullThresh=0.018946715240371833,
-    dw_dx_pushThresh=-0.02635208430781338,
+    w_pullThresh=2.7816693254808236,
+    w_pushThresh=0.5904410714865662
 )
 
 PILOT_CHEATER = simPilot.CheaterSimPilot(

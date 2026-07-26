@@ -148,8 +148,8 @@ class RealisticSimPilot(SimPilot):
         targetCruise_v: float,
         n_max: float,   # Upper load factor limit (g)
         n_min: float,   # Lower load factor limit (g)
-        dw_dx_pullThresh: float, # Pilot pulls once the thermal is stronger than this (m/s/m)
-        dw_dx_pushThresh: float # Pilot pushes once the thermal becomes weaker than this (m/s/m)
+        w_pullThresh: float, # Pilot pulls once the thermal is predicted stronger than this (m/s)
+        w_pushThresh: float # Pilot pushes once the thermal is predicted weaker than this (m/s)
     ):
         self._name = name
         self._kp = kp
@@ -158,10 +158,25 @@ class RealisticSimPilot(SimPilot):
         self._targetCruise_v = targetCruise_v
         self._n_max = n_max
         self._n_min = n_min
-        self._dw_dx_pullThresh = dw_dx_pullThresh
-        self._dw_dx_pushThresh = dw_dx_pushThresh
+        self._w_pullThresh = w_pullThresh
+        self._w_pushThresh = w_pushThresh
 
         self.reset_state()
+
+    def __str__(self):
+        return f'''
+simPilot.RealisticSimPilot(
+    name="{self._name}",
+    kp={self._kp},
+    kd={self._kd},
+    targetDolphin_v={self._targetDolphin_v},
+    targetCruise_v={self._targetCruise_v},
+    n_max={self._n_max},
+    n_min={self._n_min},
+    w_pullThresh={self._w_pullThresh},
+    w_pushThresh={self._w_pushThresh}
+)
+        '''
 
     def n_cmd(self, state: SimState, w: float, dw_dx: float) -> float:
         # 0.2 per 2 m/s
@@ -170,9 +185,10 @@ class RealisticSimPilot(SimPilot):
         kd = self._kd
         n_max = self._n_max
         n_min = self._n_min
-        dw_dx_pullThresh = self._dw_dx_pullThresh
-        dw_dx_pushThresh = self._dw_dx_pushThresh
-        targetDolphin_v = self._targetDolphin_v
+        w_pullThresh = self._w_pullThresh
+        w_pushThresh = self._w_pushThresh
+        # TODO: move to pilot profile?
+        w_maxPull = 2.5 # m/s
 
         if self._state in ('CRUISE', 'PUSHOVER'):
             target_v = self._targetCruise_v
@@ -183,11 +199,6 @@ class RealisticSimPilot(SimPilot):
     
         dw_dt = dw_dx * state.v
         if self._state in ('PULLUP', 'PUSHOVER') and w > 0:
-            # TODO: get these parameters into the pilot profile
-            pushoverGs = 0.5
-            pullupGs = 2.3
-            maxW = 2.5
-    
             # Want:
             #   n(t) = k1 + k2 * w(t)
             # So:
@@ -204,9 +215,9 @@ class RealisticSimPilot(SimPilot):
             # ...for perfect lag cancellation.
     
             # k1 is how much we push outside of the thermal (when w an dw/dt are 0)
-            k1 = pushoverGs
+            k1 = n_min
             # We want maximum pulling at the core (w = maxW)
-            k2 = (pullupGs - pushoverGs)/maxW
+            k2 = (n_max - n_min)/w_maxPull
             # k3 is computed to cancel lag as shown above
             k3 = k2 * simConstants.tau_n
     
@@ -234,27 +245,26 @@ class RealisticSimPilot(SimPilot):
             # There is no actual w_pullThresh since we pull based on shear now, so just
             # assume it's like 2 m/s or ignore it completely and then kw = k2
     
-            # TODO: get these parameters into the pilot profile
-            pushoverGs = 0.5
-            pullupGs = 2.3
-            maxW = 2.5
-            k2 = (pullupGs - pushoverGs)/maxW
-            kw = k2
+            k2 = (n_max - n_min)/w_maxPull
+            kw = k2 + (n_min - 1.0) / w_pullThresh
     
             n_cmd = 1.0 + kp * (state.v - target_v_dynamic) + kd * state.dv_dt + kw * w
         
         # Clamp
-        return max(0, min(n_max, n_cmd))
+        return max(n_min, min(n_max, n_cmd))
 
     def advance_state(self, state: SimState, w: float, dw_dx: float) -> None:
+        # Predict thermal strength tau_n seconds in the future.
+        w_predicted = w + state.v * dw_dx * simConstants.tau_n
+
         # Pull-up trigger on entry gradient
-        if dw_dx > self._dw_dx_pullThresh and self._state == 'CRUISE':
+        if w_predicted > self._w_pullThresh and self._state == 'CRUISE':
             self._state = 'PULLUP'
         # Stop pulling if airspeed drops to target dolphin speed
         elif self._state == 'PULLUP' and state.v <= self._targetDolphin_v:
             self._state = 'COAST'  # Holds 1.0g through the core
         # Push-over trigger on exit shear gradient
-        elif dw_dx < self._dw_dx_pushThresh and self._state in ('PULLUP', 'COAST'):
+        elif w_predicted < self._w_pushThresh and self._state in ('PULLUP', 'COAST'):
             self._state = 'PUSHOVER'
         # Return to cruise once airspeed is fully recovered
         elif self._state == 'PUSHOVER' and state.v >= self._targetCruise_v:
@@ -271,8 +281,8 @@ class RealisticSimPilot(SimPilot):
             self._targetDolphin_v,
             #self._n_max,
             #self._n_min,
-            self._dw_dx_pullThresh,
-            self._dw_dx_pushThresh,
+            self._w_pullThresh,
+            self._w_pushThresh,
         ]
 
     @parameters.setter
@@ -283,8 +293,8 @@ class RealisticSimPilot(SimPilot):
             self._targetDolphin_v,
             #self._n_max,
             #self._n_min,
-            self._dw_dx_pullThresh,
-            self._dw_dx_pushThresh,
+            self._w_pullThresh,
+            self._w_pushThresh,
         ] = x
 
     @property
@@ -296,14 +306,14 @@ class RealisticSimPilot(SimPilot):
             0.01,
             0.0,
             23.0,
-            1e-5,
+            0,
             -1.0,
         ]
         xmax = [
             1.0,
             4.0,
             70.0,
-            1.0,
-            -1e-5,
+            10.0,
+            10.0,
         ]
         return (xmin, xmax)
