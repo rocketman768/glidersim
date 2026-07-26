@@ -2,43 +2,17 @@
 
 import sim
 import simCheater
+import simPilot
 
 from skopt import forest_minimize
 from skopt.space import Real
 
 import cma
 
-def f(x, isCheater: bool = False):
-    pilot = None
-
-    if isCheater:
-        xCheater_init, nCmdCheater_init = simCheater.initialCheaterParameters(sim.thermalWidth, sim.thermalCenter)
-        pilot = sim.PilotProfile(
-            name="TestCheater",
-            kp=0,
-            kd=0,
-            targetDolphin_v=25.0,
-            n_max=3.0,
-            n_min=1.0,
-            dw_dx_pullThresh=0,
-            dw_dx_pushThresh=0,
-            nCmd_cheater=nCmdCheater_init,
-            nCmd_x_cheater=xCheater_init
-        )
-        pilot.nCmd_cheater = x
-    else:
-        pilot = sim.PilotProfile(
-            name="TestPilot",
-            kp=x[0],
-            kd=x[1],
-            targetDolphin_v=x[2],
-            n_max=x[3],
-            n_min=x[4],
-            dw_dx_pullThresh=x[5],
-            dw_dx_pushThresh=x[6]
-        )
-
+def f(x, pilot: simPilot.SimPilot):
     try:
+        pilot.reset_state()
+        pilot.parameters = x
         data = sim.simulate(30.0, pilot)
     except:
         # Give some large penalty for breaking the simulation
@@ -49,25 +23,18 @@ def f(x, isCheater: bool = False):
     # All pilots need to finish at the starting velocity
     term1 = abs(data['v'][-1] - data['v'][0])
     # All pilots need to finish at constant velocity
-    term2 = abs(data['v'][-1] - data['v'][-2]) / (data['t'][-1] - data['t'][-2])
+    term2 = abs(data['dv_dt'][-1])
 
     return term0 - 0.1 * term1 - 0.5 * term2
 
-def df_dx(x, isCheater: bool = False):
-    dx = 0.001
-
-    def df(n):
-        x0 = x[0:n] + [x[n] - dx] + x[(n+1):]
-        x1 = x[0:n] + [x[n] + dx] + x[(n+1):]
-        return (f(x1, isCheater) - f(x0, isCheater)) / (2 * dx)
-
-    return [df(n) for n in range(len(x))]
-
-def optimizeCheater():
+def optimizedCheater():
+    x = simCheater.initialCheaterParameters(sim.thermalCenter, sim.thermalWidth)[0]
     numCheaterPoints = len(simCheater.initialCheaterParameters(sim.thermalCenter, sim.thermalWidth)[1])
-    x = [1.0] * numCheaterPoints
+    n0 = [1.0] * numCheaterPoints
 
-    numCheaterPoints = len(x)
+    pilot = simPilot.CheaterSimPilot('Cheater', x, n0)
+
+    numCheaterPoints = len(n0)
 
     def roughness(arg):
         sum = 0.0
@@ -75,41 +42,38 @@ def optimizeCheater():
             sum += (arg[ndx+1] - arg[ndx])**2
         return sum / len(arg)
     def objFun(arg):
-        x = [float(a) for a in arg]
-        return -f(x, True) + 0.5 * roughness(x)
+        n = [float(a) for a in arg]
+        return -f(n, pilot) + 0.5 * roughness(n)
 
-    print(objFun(x))
+    print(objFun(n0))
     options = {
         'bounds': [0.0, 3.0],  # Enforces physical load factor limits
         'popsize': 32,          # Slightly larger population for 55D
         'maxiter': 500
     }
     sigma0 = 0.05
-    x_best, es = cma.fmin2(objFun, x, sigma0, options=options)
-    print([float(a) for a in x_best])
+    n_best, es = cma.fmin2(objFun, n0, sigma0, options=options)
+    print([float(a) for a in n_best])
 
-def optimizePilot():
-    #       [ 0,   1,    2,    3,    4,     5,     6]
-    #       [ kp, kd, vdol, nmax, nmin, shearpull, shearpush]
-    x0    = [0.10, 0.38, 28.0, 1.2, 0.8, 1e-3, -1e-3]
-    x_min = [0.01, 0.0, 25.0, 1.01, 0.0, 0.0, -5e-2]
-    x_max = [0.2, 0.8, 49.0, 3.0, 0.9, 5e-2, 0.0]
-
+def optimizedPilot(pilot: simPilot.SimPilot):
     def objFun(arg):
         x = [float(a) for a in arg]
-        return -f(x)
+        return -f(x, pilot)
 
+    print(pilot.parameter_limits())
+    (x_min, x_max) = pilot.parameter_limits()
     options = {
         'bounds': [x_min, x_max],
-        'fixed_variables': {3: x0[3], 4: x0[4]},
         'popsize': 32,          # Slightly larger population for 55D
         'maxiter': 500
     }
     sigma0 = 0.05
-    x_best, es = cma.fmin2(objFun, x0, sigma0, options=options)
+    x_best, es = cma.fmin2(objFun, pilot.parameters, sigma0, options=options)
+
+    pilot.parameters = [float(a) for a in x_best]
     
     print(f'{objFun(x_best):.4f}')
-    print([float(a) for a in x_best])
+    print(pilot.parameters)
 
 if __name__ == '__main__':
-    optimizePilot()
+    pilot = optimizedPilot(sim.PILOT_OPTIMIZED)

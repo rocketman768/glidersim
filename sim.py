@@ -25,105 +25,63 @@ import sys
 from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import simCheater
+from simConstants import *
+import simPilot
 
-# Physical constants
-rho = 1.22 # kg/m^2
-g = 9.82 # m/s^2
+state = simPilot.SimState(None, None, None, None, None, None, 1.0)
 
-# Aircraft constants
-eOswald = 0.95
-S = 10.0 # m^2 (wing area)
-m = 500.0 # kg (mass)
-b = 18.0 # m (span)
-AR = b * b / S # (aspect ratio)
-tau_n = 0.5 # s (lag time constant for changes in load factor)
-
-# State vars
-state_t = None # s
-state_x = None # m
-state_z = None # m
-state_v = None # m/s
-state_gamma = None # radians (note: initialize this to proper steady-state for x/z/v)
-state_nCmd = 1.0 # Commanded Gs of acceleration
-state_n = 1.0 # Gs of acceleration. Control input.
-state_pilot = None # CRUISE, PULLUP, COAST, PUSHOVER
-
-# Simulation constants
-dt = 0.1 # s
-targetCruise_v = 49.0 # m/s
-thermalWidth = 300.0 # m
-thermalVelocity = 2.5 # m/s
-thermalCenter = 450.0 # m
-
-# Pilot profiles
-@dataclass
-class PilotProfile:
-    name: str
-    kp: float      # Speed error gain (g's per m/s speed error)
-    kd: float      # Acceleration damping gain (g's per m/s^2 acceleration)
-    targetDolphin_v: float # Target dolphin speed (m/s)
-    n_max: float   # Upper load factor limit (g)
-    n_min: float   # Lower load factor limit (g)
-    dw_dx_pullThresh: float # Pilot pulls once the thermal is stronger than this (m/s/m)
-    dw_dx_pushThresh: float # Pilot pushes once the thermal becomes weaker than this (m/s/m)
-    nCmd_cheater: list[float] = None
-    nCmd_x_cheater: list[float] = None
-
-PILOT_BLOCK = PilotProfile(
+PILOT_BLOCK = simPilot.RealisticSimPilot(
     name="Block STF",
     kp=0.10,
     kd=0.38,
     targetDolphin_v=targetCruise_v,
+    targetCruise_v=targetCruise_v,
     n_max=1.2,
     n_min=0.8,
     dw_dx_pullThresh=1e-3,
     dw_dx_pushThresh=-1e-3,
 )
 
-PILOT_SMOOTH = PilotProfile(
+PILOT_SMOOTH = simPilot.RealisticSimPilot(
     name="SmoothOperator",
     kp=0.017269494548686513,
     kd=0.009288804941364644,
     targetDolphin_v=25.0,
+    targetCruise_v=targetCruise_v,
     n_max=1.2,
     n_min=0.8,
     dw_dx_pullThresh=0.004616814427957397,
     dw_dx_pushThresh=-0.01020278424458272,
 )
 
-PILOT_AGGRESSIVE = PilotProfile(
+PILOT_AGGRESSIVE = simPilot.RealisticSimPilot(
     name="AggroCraig",
     kp=0.022604656979228612,
     kd=0.16349212404581956,
     targetDolphin_v=28.1387843378532,
+    targetCruise_v=targetCruise_v,
     n_max=2.0,
     n_min=0.5,
     dw_dx_pullThresh=0.01845927517812618,
     dw_dx_pushThresh=-0.03215666579929182,
 )
 
-PILOT_CHEATER = PilotProfile(
-    name="Cheater",
-    kp=0,
-    kd=0,
-    targetDolphin_v=25,
-    n_max=3.0,
-    n_min=0,
-    dw_dx_pullThresh=1e-3,
-    dw_dx_pushThresh=-1e-3,
-    nCmd_x_cheater=simCheater.initialCheaterParameters(thermalCenter, thermalWidth)[0],
-    nCmd_cheater=simCheater.initialCheaterParameters(thermalCenter, thermalWidth)[1],
-)
-
-PILOT_OPTIMIZED = PilotProfile(
+PILOT_OPTIMIZED = simPilot.RealisticSimPilot(
     name="Maverick",
     kp=0.022611050199927145,
     kd=0.16352459173030126,
     targetDolphin_v=27.919185263723563,
+    targetCruise_v=targetCruise_v,
     n_max=3.0,
     n_min=0.0,
     dw_dx_pullThresh=0.018946715240371833,
     dw_dx_pushThresh=-0.02635208430781338,
+)
+
+PILOT_CHEATER = simPilot.CheaterSimPilot(
+    name="Cheater",
+    x=simCheater.initialCheaterParameters(thermalCenter, thermalWidth)[0],
+    n=simCheater.initialCheaterParameters(thermalCenter, thermalWidth)[1],
 )
 
 # Pick the pilot!
@@ -141,14 +99,14 @@ def steadyStateGamma(v, n_cmd):
     return math.asin(-drag / (m * g))
 
 def initializeState():
-    global state_t, state_x, state_z, state_v, state_gamma, state_n, state_pilot
-    state_t = 0.0 # s
-    state_x = 0.0 # m
-    state_z = 0.0 # m
-    state_v = targetCruise_v # m/s
-    state_n = 1.0 # m/s
-    state_gamma = steadyStateGamma(state_v, state_n)
-    state_pilot = 'CRUISE'
+    global state
+    state.t = 0.0 # s
+    state.x = 0.0 # m
+    state.z = 0.0 # m
+    state.v = targetCruise_v # m/s
+    state.dv_dt = 0.0
+    state.n = 1.0 # m/s
+    state.gamma = steadyStateGamma(state.v, state.n)
 
 def w_box(x):
     if x < thermalCenter - thermalWidth/2 or x > thermalCenter + thermalWidth/2:
@@ -314,232 +272,103 @@ def derivatives(x, z, v, gamma, n, n_cmd):
 
     return dx_dt, dz_dt, dv_dt, dgamma_dt, dn_dt
 
-def controlUpdate_cheater():
-    x = pilot.nCmd_x_cheater
-    n = pilot.nCmd_cheater
-
-    def findNdx():
-        for ndx, x0 in enumerate(x):
-            if x0 > state_x:
-                return max(0, ndx - 1)
-        return len(x) - 1
-
-    ndx = findNdx()
-    if ndx < 0:
-        return n[0]
-    if ndx >= len(x) - 1:
-        return n[-1]
-
-    # linear n for each dx segment
-    xleft = x[ndx]
-    xright = x[ndx+1]
-    a = (state_x - xleft) / (xright - xleft)
-    nleft = n[ndx]
-    nright = n[ndx+1]
-
-    return (1-a) * nleft + a * nright
-
-def controlUpdate():
-    global state_pilot
-    if pilot.nCmd_cheater and pilot.nCmd_x_cheater:
-        return controlUpdate_cheater()
-
-    # 0.2 per 2 m/s
-    kp = pilot.kp
-    # Tune to prevent overshoot
-    kd = pilot.kd
-    n_max = pilot.n_max
-    n_min = pilot.n_min
-    dw_dx_pullThresh = pilot.dw_dx_pullThresh
-    dw_dx_pushThresh = pilot.dw_dx_pushThresh
-    targetDolphin_v = pilot.targetDolphin_v
-
-    # We need the velocity derivative. (pass dummy 0.0 for n_cmd since dv/dt doesn't use it)
-    _, _, dv_dt, _, _ = derivatives(state_x, state_z, state_v, state_gamma, state_n, 0.0)
-
-    localShear = dw_dx(state_x)
-    localW = w(state_x)
-
-    # Pull-up trigger on entry gradient
-    if localShear > dw_dx_pullThresh and state_pilot == 'CRUISE':
-        state_pilot = 'PULLUP'
-    # Stop pulling if airspeed drops to target dolphin speed
-    elif state_pilot == 'PULLUP' and state_v <= targetDolphin_v:
-        state_pilot = 'COAST'  # Holds 1.0g through the core
-    # Push-over trigger on exit shear gradient
-    elif localShear < dw_dx_pushThresh and state_pilot in ('PULLUP', 'COAST'):
-        state_pilot = 'PUSHOVER'
-    # Return to cruise once airspeed is fully recovered
-    elif state_pilot == 'PUSHOVER' and state_v >= targetCruise_v:
-        state_pilot = 'CRUISE'
-
-    if state_pilot in ('CRUISE', 'PUSHOVER'):
-        target_v = targetCruise_v
-    else:
-        target_v = targetDolphin_v
-
-    #if pilot.name == 'Maverick':
-    #    print(f'{state_pilot} {localShear:.4f} {state_v:.1f}')
-
-    dw_dt = localShear * state_v
-    if state_pilot in ('PULLUP', 'PUSHOVER') and localW > 0:
-        # TODO: get these parameters into the pilot profile
-        pushoverGs = 0.5
-        pullupGs = 2.3
-        maxW = 2.5
-
-        # Want:
-        #   n(t) = k1 + k2 * w(t)
-        # So:
-        #   dn/dt = k2 dw/dt.
-        # Also, from state equations,
-        #   dn/dt = (n_cmd - n) / tau.
-        # So:
-        #   k2 dw/dt = (n_cmd - n) / tau
-        #   k2 dw/dt = (n_cmd - (k1 + k2 w(t))) / tau
-        #   tau k2 dw/dt = n_cmd - k1 - k2 w(t)
-        #   n_cmd = k1 + k2 w(t) + tau * k2 * dw/dt
-        # So:
-        #   k3 = tau * k2
-        # ...for perfect lag cancellation.
-
-        # k1 is how much we push outside of the thermal (when w an dw/dt are 0)
-        k1 = pushoverGs
-        # We want maximum pulling at the core (w = maxW)
-        k2 = (pullupGs - pushoverGs)/maxW
-        # k3 is computed to cancel lag as shown above
-        k3 = k2 * tau_n
-
-        n_cmd = k1 + k2 * localW + k3 * dw_dt
-    else:
-        # Speed control with MacCready target modulation
-        # target_v decreases in lift (w > 0) and increases in sink (w < 0)
-
-        # The sensitivity is how much you should speed up in m/s if there is 1 m/s of sink
-        # at the current airspeed based on maccready analysis of the polar
-        maccreadySensitivity = 6.0
-
-        target_v_dynamic = target_v - maccreadySensitivity * localW
-
-        # I know we are double-adding terms proportional to localW here, but
-        # kp * maccreadySensitivity will simply be to low to make quick airspeed
-        # changes, and it's simply easier to think about first that we should adjust
-        # the target speed, and THEN do some pushing based on the vario.
-
-        # I want continuity between the two controllers at the pull threshold.
-        # Assuming the velocity terms are close to 0...
-        # 1.0 + kw * w_pullThresh = k1 + k2 * w_pullThresh + k3 * dw_dt(w_pullThresh)
-        # Assuming dw_dt \approx 0
-        # kw = k2 + (k1 - 1.0) / w_pullThresh
-        # There is no actual w_pullThresh since we pull based on shear now, so just
-        # assume it's like 2 m/s or ignore it completely and then kw = k2
-
-        # TODO: get these parameters into the pilot profile
-        pushoverGs = 0.5
-        pullupGs = 2.3
-        maxW = 2.5
-        k2 = (pullupGs - pushoverGs)/maxW
-        kw = k2
-
-        n_cmd = 1.0 + kp * (state_v - target_v_dynamic) + kd * dv_dt + kw * localW
-    
-    # Clamp
-    return max(0, min(n_max, n_cmd))
-
-def advanceState():
+def advanceState(pilot: simPilot.SimPilot):
     # RK4 update
-    global state_t, state_x, state_z, state_v, state_gamma, state_n, state_nCmd
+    global state
 
-    # We have a simulation singularity at state_v = 0 where cl becomes infinite.
+    # We have a simulation singularity at state.v = 0 where cl becomes infinite.
     # We must stop early on such singularities
-    cl = commandedLiftCoefficient(state_n, max(1e-3, state_v))
+    cl = commandedLiftCoefficient(state.n, max(1e-3, state.v))
     if cl > 5.0:
         raise SimulationError("Glider is deeply stalled")
 
-    # 1. Update control input based on current state
-    state_nCmd = controlUpdate()
+    # 1. Update pilot state and control input
+    localW = w(state.x)
+    localShear = dw_dx(state.x)
+    pilot.advance_state(state, localW, localShear)
+    nCmd = pilot.n_cmd(state, localW, localShear)
     
     # 2. RK4 Intermediate steps
     # k1
-    k1_x, k1_z, k1_v, k1_g, k1_n = derivatives(state_x, state_z, state_v, state_gamma, state_n, state_nCmd)
+    k1_x, k1_z, k1_v, k1_g, k1_n = derivatives(state.x, state.z, state.v, state.gamma, state.n, nCmd)
     
     # k2
     k2_x, k2_z, k2_v, k2_g, k2_n = derivatives(
-        state_x + 0.5 * dt * k1_x,
-        state_z + 0.5 * dt * k1_z,
-        state_v + 0.5 * dt * k1_v,
-        state_gamma + 0.5 * dt * k1_g,
-        state_n + 0.5 * dt * k1_n,
-        state_nCmd
+        state.x + 0.5 * dt * k1_x,
+        state.z + 0.5 * dt * k1_z,
+        state.v + 0.5 * dt * k1_v,
+        state.gamma + 0.5 * dt * k1_g,
+        state.n + 0.5 * dt * k1_n,
+        nCmd
     )
     
     # k3
     k3_x, k3_z, k3_v, k3_g, k3_n = derivatives(
-        state_x + 0.5 * dt * k2_x,
-        state_z + 0.5 * dt * k2_z,
-        state_v + 0.5 * dt * k2_v,
-        state_gamma + 0.5 * dt * k2_g,
-        state_n + 0.5 * dt * k2_n,
-        state_nCmd
+        state.x + 0.5 * dt * k2_x,
+        state.z + 0.5 * dt * k2_z,
+        state.v + 0.5 * dt * k2_v,
+        state.gamma + 0.5 * dt * k2_g,
+        state.n + 0.5 * dt * k2_n,
+        nCmd
     )
     
     # k4
     k4_x, k4_z, k4_v, k4_g, k4_n = derivatives(
-        state_x + dt * k3_x,
-        state_z + dt * k3_z,
-        state_v + dt * k3_v,
-        state_gamma + dt * k3_g,
-        state_n + dt * k3_n,
-        state_nCmd
+        state.x + dt * k3_x,
+        state.z + dt * k3_z,
+        state.v + dt * k3_v,
+        state.gamma + dt * k3_g,
+        state.n + dt * k3_n,
+        nCmd
     )
     
     # 3. Weighted state updates
-    state_x += (dt / 6.0) * (k1_x + 2.0 * k2_x + 2.0 * k3_x + k4_x)
-    state_z += (dt / 6.0) * (k1_z + 2.0 * k2_z + 2.0 * k3_z + k4_z)
-    state_v += (dt / 6.0) * (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v)
-    state_gamma += (dt / 6.0) * (k1_g + 2.0 * k2_g + 2.0 * k3_g + k4_g)
-    state_n += (dt / 6.0) * (k1_n + 2.0 * k2_n + 2.0 * k3_n + k4_n)
+    state.x += (dt / 6.0) * (k1_x + 2.0 * k2_x + 2.0 * k3_x + k4_x)
+    state.z += (dt / 6.0) * (k1_z + 2.0 * k2_z + 2.0 * k3_z + k4_z)
+    state.v += (dt / 6.0) * (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v)
+    # TODO: think careful about whether we should call derivatives() again to get an updated dv/dt
+    state.dv_dt = k1_v
+    state.gamma += (dt / 6.0) * (k1_g + 2.0 * k2_g + 2.0 * k3_g + k4_g)
+    state.n += (dt / 6.0) * (k1_n + 2.0 * k2_n + 2.0 * k3_n + k4_n)
     
-    state_t += dt
+    state.t += dt
 
 def energyAsHeight():
-    return state_z + state_v ** 2 / (2 * g)
+    return state.z + state.v ** 2 / (2 * g)
 
 def detrendedEnergyHeight():
     # Adjust the total energy height for maccready
     w_mc = impliedMacCready(targetCruise_v)
-    totalEnergy_height = state_z + state_v ** 2 / (2 * g) - w_mc * state_t
+    totalEnergy_height = state.z + state.v ** 2 / (2 * g) - w_mc * state.t
 
     # Steady cruise slope (m of energy height lost per m of horizontal distance)
     s_eff = (sinkRateInStillAir(targetCruise_v) + w_mc) / targetCruise_v
     # Detrended energy height
-    baseline_E_h = - (s_eff * state_x)
+    baseline_E_h = - (s_eff * state.x)
 
     delta_E_h = (totalEnergy_height - baseline_E_h)
     return delta_E_h
 
 def printState():
-    v_kt = state_v * 1.94
-    x_ft = state_x * 3.28
-    z_ft = state_z * 3.28
-    pitch_deg = state_gamma / math.pi * 180.0
-    print(f'{state_t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}\t{state_n:.1f}')
+    v_kt = state.v * 1.94
+    x_ft = state.x * 3.28
+    z_ft = state.z * 3.28
+    pitch_deg = state.gamma / math.pi * 180.0
+    print(f'{state.t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}\t{state.n:.1f}')
 
     #delta_E_h = detrendedEnergyHeight()
 
     #delta_E_h_ft = delta_E_h * 3.28
     #print(f'{x_ft:.0f}\t{delta_E_h_ft:.0f}')
 
-def simulate(tMax, simPilot=PILOT_SMOOTH):
-    global pilot
-
-    pilot = simPilot
+def simulate(tMax, pilot: simPilot.SimPilot):
     initializeState()
 
     history = {"t": [], 
                "x": [], 
                "z": [], 
                "v": [], 
+               "dv_dt": [],
                "gamma": [], 
                "n": [], 
                "n_cmd": [], 
@@ -548,18 +377,19 @@ def simulate(tMax, simPilot=PILOT_SMOOTH):
                }
     history['simulationOK'] = True
 
-    while state_t < tMax:
-        history['t'].append(state_t)
-        history['x'].append(state_x)
-        history['z'].append(state_z)
-        history['v'].append(state_v)
-        history['gamma'].append(state_gamma)
-        history['n'].append(state_n)
-        history['n_cmd'].append(state_nCmd)
+    while state.t < tMax:
+        history['t'].append(state.t)
+        history['x'].append(state.x)
+        history['z'].append(state.z)
+        history['v'].append(state.v)
+        history['dv_dt'].append(state.dv_dt)
+        history['gamma'].append(state.gamma)
+        history['n'].append(state.n)
+        history['n_cmd'].append(pilot.n_cmd(state, w(state.x), dw_dx(state.x)))
         history['E_h'].append(energyAsHeight())
         history['E_h_detrended'].append(detrendedEnergyHeight())
         try:
-            advanceState()
+            advanceState(pilot)
         except SimulationError as e:
             print(f'Simulation error. Stopping early. Reason: {e}', file=sys.stderr)
             history['simulationOK'] = False
