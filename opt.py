@@ -79,9 +79,9 @@ def optimizedPilot(pilot: simPilot.SimPilot):
 
 if __name__ == '__main__':
     opt_pilots = []
-    #for pilot in (sim.PILOT_BLOCK, sim.PILOT_SMOOTH, sim.PILOT_AGGRESSIVE, sim.PILOT_OPTIMIZED):
-    for pilot in [sim.PILOT_OPTIMIZED]:
-        pilot.allowLoadFactorLimitTuning = True
+    for pilot in [sim.PILOT_BLOCK, sim.PILOT_SMOOTH, sim.PILOT_AGGRESSIVE, sim.PILOT_OPTIMIZED]:
+    #for pilot in [sim.PILOT_OPTIMIZED]:
+        pilot.allowLoadFactorLimitTuning = True if pilot == sim.PILOT_OPTIMIZED else False
         pilot = optimizedPilot(pilot)
         opt_pilots.append(pilot)
 

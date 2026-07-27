@@ -398,6 +398,7 @@ def simulate(tMax, pilot: simPilot.SimPilot):
     return history
 
 if __name__ == '__main__':
+    T_MAX = 30.0
 
     def plot(ax, x, y, removeOffset=False, annotateLastPoint=False):
         # Remove the initial offset
@@ -448,7 +449,8 @@ if __name__ == '__main__':
     #ax.legend(loc='lower right')
 
     if True:
-        data = simulate(30.0, PILOT_OPTIMIZED)
+        # Compare pull to thermal profile for analysis/debug
+        data = simulate(T_MAX, PILOT_OPTIMIZED)
         x_w = range(0,1400,10)
         y_w = [w(x) for x in x_w]
         y_dw = [10 * dw_dx(x) for x in x_w]
@@ -459,10 +461,10 @@ if __name__ == '__main__':
         #ax2.plot(x_w, y_dw, color='red')
         ax2.plot(data['x'], data['n'], color='red')
 
-    pilots = (PILOT_BLOCK, PILOT_SMOOTH, PILOT_OPTIMIZED, PILOT_AGGRESSIVE, PILOT_CHEATER)
+    pilots = [PILOT_BLOCK, PILOT_SMOOTH, PILOT_OPTIMIZED, PILOT_AGGRESSIVE, PILOT_CHEATER]
 
     for p in pilots:
-        data = simulate(30.0, p)
+        data = simulate(T_MAX, p)
         # Add some things to the data to visualize
         data['cl'] = [commandedLiftCoefficient(n, v) for n,v in zip(data['n'], data['v'])]
         data['cd'] = [cd0(cl) + cdi(cl) for cl in data['cl']]
