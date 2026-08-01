@@ -27,55 +27,57 @@ import matplotlib.pyplot as plt
 import simCheater
 from simConstants import *
 import simPilot
+import simGlider
 
 state = simPilot.SimState(None, None, None, None, None, None, 1.0)
+glider = simGlider.SimJS3()
 
 PILOT_BLOCK = simPilot.RealisticSimPilot(
     name="Block STF",
-    kp=0.10,
-    kd=0.38,
-    targetDolphin_v=targetCruise_v,
-    targetCruise_v=targetCruise_v,
+    kp=0.15287158687894473,
+    kd=1.1773201910632152,
+    targetDolphin_v=45.794777947432706,
+    targetCruise_v=49.0,
     n_max=1.2,
     n_min=0.8,
-    w_pullThresh=2.0,
-    w_pushThresh=0.0,
+    w_pullThresh=2.433973120136974,
+    w_pushThresh=4.715664041000883
 )
 
 PILOT_SMOOTH = simPilot.RealisticSimPilot(
     name="SmoothOperator",
-    kp=0.11965410743410854,
-    kd=0.9135092815515045,
-    targetDolphin_v=28.29905227678825,
+    kp=0.1514560117191305,
+    kd=1.1767068380943688,
+    targetDolphin_v=28.106847862317938,
     targetCruise_v=49.0,
     n_max=1.2,
     n_min=0.8,
-    w_pullThresh=2.7776698384242495,
-    w_pushThresh=-0.9200110433052546
+    w_pullThresh=2.777625419511177,
+    w_pushThresh=-0.9050946733905502
 )
 
 PILOT_AGGRESSIVE = simPilot.RealisticSimPilot(
     name="AggroCraig",
-    kp=0.037857535877599595,
-    kd=0.20402355352215196,
-    targetDolphin_v=28.67164663452786,
+    kp=0.04305221812889901,
+    kd=0.2235336440003266,
+    targetDolphin_v=28.708025373067358,
     targetCruise_v=49.0,
     n_max=2.0,
     n_min=0.5,
-    w_pullThresh=2.7785569166199466,
-    w_pushThresh=0.46876167327718576
+    w_pullThresh=2.7784898328977947,
+    w_pushThresh=0.40449143898695183
 )
 
 PILOT_OPTIMIZED = simPilot.RealisticSimPilot(
     name="Maverick",
-    kp=0.015863753007310195,
-    kd=0.12937878573210781,
-    targetDolphin_v=28.513083937630796,
+    kp=0.032762116364092854,
+    kd=0.1842747860299896,
+    targetDolphin_v=30.38107289440602,
     targetCruise_v=49.0,
-    n_max=2.5379337702392775,
-    n_min=-0.1454778658906548,
-    w_pullThresh=2.782057863915388,
-    w_pushThresh=0.6812879530473452
+    n_max=2.273687819014897,
+    n_min=0.3598248735383487,
+    w_pullThresh=2.780003380231301,
+    w_pushThresh=0.7403917560149489
 )
 
 PILOT_CHEATER = simPilot.CheaterSimPilot(
@@ -94,9 +96,9 @@ class SimulationError(Exception):
 # Pitch angle for given speed and loading
 def steadyStateGamma(v, n_cmd):
     cl = commandedLiftCoefficient(n_cmd, v)
-    cd = cd0(cl) + cdi(cl)
-    drag = q(v) * S * cd
-    return math.asin(-drag / (m * g))
+    cd = glider.cd(cl)
+    drag = q(v) * glider.S() * cd
+    return math.asin(-drag / (glider.m() * g))
 
 def initializeState():
     global state
@@ -145,44 +147,18 @@ def q(v):
     return 0.5 * rho * v * v
 
 def commandedLiftCoefficient(n0, v):
-    cl = n0 * m * g / (q(v) * S)
+    cl = n0 * glider.m() * g / (q(v) * glider.S())
     return cl
 
 def lift(v, cl):
-    return q(v) * S * cl
-
-# Valid for cl in [0.281, 1.33]
-def cd0(cl):
-    # 3 points from polar
-    # (0.281, 36.7e-4)
-    # (0.734, 45.0e-4)
-    # (1.33, 70e-4)
-
-    # Horner form quadratic
-    u = cl * 2.252e-3 - 4.54e-4
-    v = u * cl + 3.620e-3
-
-    # The polar ignores drag from the fuselage and tail.
-    # Add some to make it more realistic
-    v += 30e-4
-
-    # End of the drag buckets...approximate the nixus polar dropoffs
-    if cl < 0.281:
-        v += (0.281 - cl) * 50e-4/0.281
-    elif cl > 1.33:
-        v += (cl - 1.33) * 100e-4/0.1
-
-    return v
-
-def cdi(cl):
-    return cl * cl / (math.pi * AR * eOswald)
+    return q(v) * glider.S() * cl
 
 def sinkRateInStillAir(v):
     """Calculates steady-state unaccelerated sink rate (m/s) at airspeed v."""
     cl = commandedLiftCoefficient(1.0, v)
-    cd = cd0(cl) + cdi(cl)
-    drag = q(v) * S * cd
-    return (drag * v) / (m * g)
+    cd = glider.cd(cl)
+    drag = q(v) * glider.S() * cd
+    return (drag * v) / (glider.m() * g)
 
 def impliedMacCready(v_cruise):
     """Computes the implied MacCready climb rate w_mc (m/s) for a given cruise speed."""
@@ -254,8 +230,8 @@ def maccreadyDolphinSpeed(x, v_cruise):
 def derivatives(x, z, v, gamma, n, n_cmd):
     """Calculates [dx/dt, dz/dt, dv/dt, dgamma/dt, dn/dt] for a given state."""
     cl = commandedLiftCoefficient(n, v)
-    cd = cd0(cl) + cdi(cl)
-    drag = q(v) * S * cd
+    cd = glider.cd(cl)
+    drag = q(v) * glider.S() * cd
 
     # Wind shear spatial gradient
     shear = dw_dx(x)
@@ -264,7 +240,7 @@ def derivatives(x, z, v, gamma, n, n_cmd):
     dz_dt = v * math.sin(gamma) + w(x)
 
     # Coupled state derivatives
-    dv_dt = -(drag / m) - g * math.sin(gamma) - v * shear * math.cos(gamma) * math.sin(gamma)
+    dv_dt = -(drag / glider.m()) - g * math.sin(gamma) - v * shear * math.cos(gamma) * math.sin(gamma)
     dgamma_dt = (g / v) * (n - math.cos(gamma)) - shear * (math.cos(gamma) ** 2)
     
     # Dynamic lag derivative
@@ -467,7 +443,7 @@ if __name__ == '__main__':
         data = simulate(T_MAX, p)
         # Add some things to the data to visualize
         data['cl'] = [commandedLiftCoefficient(n, v) for n,v in zip(data['n'], data['v'])]
-        data['cd'] = [cd0(cl) + cdi(cl) for cl in data['cl']]
+        data['cd'] = [glider.cd(cl) for cl in data['cl']]
 
         for (ax, (keyX, keyY)) in zip(axes, dataKeysToPlot):
             annotateLastPoint = keyX == 'E_h_detrended'

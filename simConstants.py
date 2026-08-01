@@ -3,11 +3,6 @@ rho = 1.22 # kg/m^2
 g = 9.82 # m/s^2
 
 # Aircraft constants
-eOswald = 0.95
-S = 10.0 # m^2 (wing area)
-m = 500.0 # kg (mass)
-b = 18.0 # m (span)
-AR = b * b / S # (aspect ratio)
 tau_n = 0.5 # s (lag time constant for changes in load factor)
 
 # Simulation constants
