@@ -97,8 +97,8 @@ class SimulationError(Exception):
 def steadyStateGamma(v, n_cmd):
     cl = commandedLiftCoefficient(n_cmd, v)
     cd = glider.cd(cl)
-    drag = q(v) * glider.S() * cd
-    return math.asin(-drag / (glider.m() * g))
+    drag = q(v) * glider.S * cd
+    return math.asin(-drag / (glider.m * g))
 
 def initializeState():
     global state
@@ -147,18 +147,18 @@ def q(v):
     return 0.5 * rho * v * v
 
 def commandedLiftCoefficient(n0, v):
-    cl = n0 * glider.m() * g / (q(v) * glider.S())
+    cl = n0 * glider.m * g / (q(v) * glider.S)
     return cl
 
 def lift(v, cl):
-    return q(v) * glider.S() * cl
+    return q(v) * glider.S * cl
 
 def sinkRateInStillAir(v):
     """Calculates steady-state unaccelerated sink rate (m/s) at airspeed v."""
     cl = commandedLiftCoefficient(1.0, v)
     cd = glider.cd(cl)
-    drag = q(v) * glider.S() * cd
-    return (drag * v) / (glider.m() * g)
+    drag = q(v) * glider.S * cd
+    return (drag * v) / (glider.m * g)
 
 def impliedMacCready(v_cruise):
     """Computes the implied MacCready climb rate w_mc (m/s) for a given cruise speed."""
@@ -185,7 +185,7 @@ def maccreadyDolphinSpeed(x, v_cruise):
     # MacCready equation is only valid for w(x) < w_mc.
     # When w(x) >= w_mc, optimal straight speed is v_minSink
     if w_val >= w_mc * 0.99:
-        return glider.v_minSink(), 0.0
+        return glider.v_minSink, 0.0
     
     # MacCready target intercept: f(v) = v * w_s'(v) - w_s(v) = w_mc - w(x)
     target = w_mc - w_val
@@ -230,7 +230,7 @@ def derivatives(x, z, v, gamma, n, n_cmd):
     """Calculates [dx/dt, dz/dt, dv/dt, dgamma/dt, dn/dt] for a given state."""
     cl = commandedLiftCoefficient(n, v)
     cd = glider.cd(cl)
-    drag = q(v) * glider.S() * cd
+    drag = q(v) * glider.S * cd
 
     # Wind shear spatial gradient
     shear = dw_dx(x)
@@ -239,11 +239,11 @@ def derivatives(x, z, v, gamma, n, n_cmd):
     dz_dt = v * math.sin(gamma) + w(x)
 
     # Coupled state derivatives
-    dv_dt = -(drag / glider.m()) - g * math.sin(gamma) - v * shear * math.cos(gamma) * math.sin(gamma)
+    dv_dt = -(drag / glider.m) - g * math.sin(gamma) - v * shear * math.cos(gamma) * math.sin(gamma)
     dgamma_dt = (g / v) * (n - math.cos(gamma)) - shear * (math.cos(gamma) ** 2)
     
     # Dynamic lag derivative
-    dn_dt = (n_cmd - n) / tau_n
+    dn_dt = (n_cmd - n) / simGlider.TAU_N
 
     return dx_dt, dz_dt, dv_dt, dgamma_dt, dn_dt
 

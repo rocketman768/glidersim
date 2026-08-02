@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 import math
 
+# Aircraft constants
+TAU_N = 0.5 # s (lag time constant for changes in load factor)
+
 class SimGlider(ABC):
     @abstractmethod
     def cd(self, cl: float) -> float:
@@ -8,26 +11,29 @@ class SimGlider(ABC):
         pass
 
     @abstractmethod
+    def flapSetting(self, cl: float) -> float:
+        '''Return flap setting for given cl'''
+        pass
+
+    @property
+    @abstractmethod
     def S(self) -> float:
         '''Return the total wing area in m^2'''
         pass
 
+    @property
     @abstractmethod
     def m(self) -> float:
         '''Total mass in kg'''
         pass
 
+    @property
     @abstractmethod
     def v_minSink(self) -> float:
-        '''Miniminum sink velocity in m/s'''
+        '''Steady-state miniminum sink velocity in m/s'''
         # NOTE: this COULD be calculated automatically from the cd(cl) function.
         # 1: find clOpt that minimizes cd(clOpt) / clOpt^1.5
         # 2: vMinSink = sqrt(m * g / (0.5 * rho * clOpt))
-        pass
-
-    @abstractmethod
-    def flapSetting(self, cl: float) -> float:
-        '''Return flap setting for given cl'''
         pass
 
 class SimJS3(SimGlider):
@@ -103,12 +109,15 @@ class SimJS3(SimGlider):
 
         return a * cdRight + (1.0 - a) * cdLeft
 
+    @property
     def S(self) -> float:
         return 10.0
 
+    @property
     def m(self) -> float:
         return 600.0
 
+    @property
     def v_minSink(self) -> float:
         return 27.78 # 100 kph @ 600 kg
 
@@ -136,12 +145,15 @@ class SimNixus(SimGlider):
     def cd(self, cl: float) -> float:
         return self._cd0(cl) + self._cdi(cl)
 
+    @property
     def S(self) -> float:
         return 10.0
 
+    @property
     def m(self) -> float:
         return 500.0
 
+    @property
     def v_minSink(self) -> float:
         return 25.0
 

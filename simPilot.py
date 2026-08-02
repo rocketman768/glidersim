@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import simConstants
+from simGlider import TAU_N
 
 @dataclass
 class SimState:
@@ -221,7 +222,7 @@ simPilot.RealisticSimPilot(
             # We want maximum pulling at the core (w = maxW)
             k2 = (n_max - n_min)/w_maxPull
             # k3 is computed to cancel lag as shown above
-            k3 = k2 * simConstants.tau_n
+            k3 = k2 * TAU_N
     
             n_cmd = k1 + k2 * w + k3 * dw_dt
         else:
@@ -257,7 +258,7 @@ simPilot.RealisticSimPilot(
 
     def advance_state(self, state: SimState, w: float, dw_dx: float) -> None:
         # Predict thermal strength tau_n seconds in the future.
-        w_predicted = w + state.v * dw_dx * simConstants.tau_n
+        w_predicted = w + state.v * dw_dx * TAU_N
 
         # Pull-up trigger on entry gradient
         if w_predicted > self._w_pullThresh and self._state == 'CRUISE':
