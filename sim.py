@@ -325,6 +325,16 @@ def detrendedEnergyHeight():
     delta_E_h = (totalEnergy_height - baseline_E_h)
     return delta_E_h
 
+def timeSavedSeconds():
+    """Returns seconds gained (+) or lost (-) relative to MacCready baseline."""
+    z0 = 0
+    v0 = targetCruise_v
+    E_h0 = z0 + (v0 * v0) / (2.0 * g)
+    w_mc = impliedMacCready(targetCruise_v)
+    if w_mc < 1e-3:
+        return 0.0
+    return (detrendedEnergyHeight() - E_h0) / w_mc
+
 def printState():
     v_kt = state.v * 1.94
     x_ft = state.x * 3.28
@@ -349,7 +359,8 @@ def simulate(tMax, pilot: simPilot.SimPilot):
                "n": [], 
                "n_cmd": [], 
                "E_h": [], 
-               "E_h_detrended": []
+               "E_h_detrended": [],
+               "t_saved": [],
                }
     history['simulationOK'] = True
 
@@ -364,6 +375,7 @@ def simulate(tMax, pilot: simPilot.SimPilot):
         history['n_cmd'].append(pilot.n_cmd(state, w(state.x), dw_dx(state.x)))
         history['E_h'].append(energyAsHeight())
         history['E_h_detrended'].append(detrendedEnergyHeight())
+        history['t_saved'].append(timeSavedSeconds())
         try:
             advanceState(pilot)
         except SimulationError as e:

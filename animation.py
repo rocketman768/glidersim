@@ -22,9 +22,9 @@ class GliderThermalComparison(Scene):
             z_min = min(min(z_min, z0), z1)
             z_max = max(max(z_max, z0), z1)
         
-        e_min = smooth["E_h_detrended"][0]
-        e_max = smooth["E_h_detrended"][0]
-        for (e0, e1) in zip(smooth["E_h_detrended"], aggro["E_h_detrended"]):
+        e_min = smooth["t_saved"][0]
+        e_max = smooth["t_saved"][0]
+        for (e0, e1) in zip(smooth["t_saved"], aggro["t_saved"]):
             e_min = min(min(e_min, e0), e1)
             e_max = max(max(e_max, e0), e1)
 
@@ -98,7 +98,7 @@ class GliderThermalComparison(Scene):
         # ----------------------------------------------------------------------
         # Lower Axes: Detrended Effective Energy Height
         # ----------------------------------------------------------------------
-        e0 = aggro["E_h_detrended"][0]
+        e0 = aggro["t_saved"][0]
         # e - e0
         ax_bot = Axes(
             x_range=[0, x_max, 200],
@@ -111,7 +111,7 @@ class GliderThermalComparison(Scene):
 
         label_bot = ax_bot.get_axis_labels(
             x_label=Tex("Distance (m)", font_size=20),
-            y_label=Tex("Racing Energy (m)", font_size=20),
+            y_label=Tex("Time Saved (s)", font_size=20),
         )
 
         # Title and Legends
@@ -151,8 +151,8 @@ class GliderThermalComparison(Scene):
         pts_top_smooth = [ax_top.c2p(x, z) for x, z in zip(smooth["x"], smooth["z"])]
         pts_top_aggro = [ax_top.c2p(x, z) for x, z in zip(aggro["x"], aggro["z"])]
 
-        pts_bot_smooth = [ax_bot.c2p(x, e - smooth["E_h_detrended"][0]) for x, e in zip(smooth["x"], smooth["E_h_detrended"])]
-        pts_bot_aggro = [ax_bot.c2p(x, e - aggro["E_h_detrended"][0]) for x, e in zip(aggro["x"], aggro["E_h_detrended"])]
+        pts_bot_smooth = [ax_bot.c2p(x, e - smooth["t_saved"][0]) for x, e in zip(smooth["x"], smooth["t_saved"])]
+        pts_bot_aggro = [ax_bot.c2p(x, e - aggro["t_saved"][0]) for x, e in zip(aggro["x"], aggro["t_saved"])]
 
         path_top_smooth = VMobject(color=TEAL, stroke_width=3).set_points_smoothly(pts_top_smooth)
         path_top_aggro = VMobject(color=ORANGE, stroke_width=3).set_points_smoothly(pts_top_aggro)
@@ -207,15 +207,15 @@ class GliderThermalComparison(Scene):
         )
         arrow.remove_updater(update_arrow)
 
-        final_e_smooth = smooth["E_h_detrended"][-1] - e0
-        final_e_aggro = aggro["E_h_detrended"][-1] - e0
+        final_e_smooth = smooth["t_saved"][-1] - e0
+        final_e_aggro = aggro["t_saved"][-1] - e0
         diff_e = final_e_smooth - final_e_aggro
 
         dot_end_smooth = Dot(ax_bot.c2p(smooth["x"][-1], final_e_smooth), color=TEAL)
         dot_end_aggro = Dot(ax_bot.c2p(aggro["x"][-1], final_e_aggro), color=ORANGE)
 
         txt_delta = Tex(
-            r"$\Delta E_{h,\text{eff}} \approx " + f"{diff_e:.1f}" + r" \text{ m}$",
+            r"$\Delta t_{\text{race}} \approx " + f"{diff_e:.1f}" + r" \text{ s}$",
             font_size=18,
             color=YELLOW,
         ).next_to(dot_end_smooth, RIGHT, buff=0.2)
