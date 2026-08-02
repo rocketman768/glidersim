@@ -183,10 +183,9 @@ def maccreadyDolphinSpeed(x, v_cruise):
     dw_dx_val = dw_dx(x)
 
     # MacCready equation is only valid for w(x) < w_mc.
-    # When w(x) >= w_mc, optimal straight speed is V_min_sink.
-    V_MIN_SINK=25.0
+    # When w(x) >= w_mc, optimal straight speed is v_minSink
     if w_val >= w_mc * 0.99:
-        return V_MIN_SINK, 0.0
+        return glider.v_minSink(), 0.0
     
     # MacCready target intercept: f(v) = v * w_s'(v) - w_s(v) = w_mc - w(x)
     target = w_mc - w_val
@@ -315,7 +314,7 @@ def energyAsHeight():
 def detrendedEnergyHeight():
     # Adjust the total energy height for maccready
     w_mc = impliedMacCready(targetCruise_v)
-    totalEnergy_height = state.z + state.v ** 2 / (2 * g) - w_mc * state.t
+    totalEnergy_height = energyAsHeight() - w_mc * state.t
 
     # Steady cruise slope (m of energy height lost per m of horizontal distance)
     s_eff = (sinkRateInStillAir(targetCruise_v) + w_mc) / targetCruise_v
@@ -341,11 +340,6 @@ def printState():
     z_ft = state.z * 3.28
     pitch_deg = state.gamma / math.pi * 180.0
     print(f'{state.t:.1f}\t{v_kt:.1f}\t{x_ft:.0f}\t{z_ft:.1f}\t{pitch_deg:.1f}\t{state.n:.1f}')
-
-    #delta_E_h = detrendedEnergyHeight()
-
-    #delta_E_h_ft = delta_E_h * 3.28
-    #print(f'{x_ft:.0f}\t{delta_E_h_ft:.0f}')
 
 def simulate(tMax, pilot: simPilot.SimPilot):
     initializeState()

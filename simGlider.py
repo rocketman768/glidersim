@@ -17,6 +17,19 @@ class SimGlider(ABC):
         '''Total mass in kg'''
         pass
 
+    @abstractmethod
+    def v_minSink(self) -> float:
+        '''Miniminum sink velocity in m/s'''
+        # NOTE: this COULD be calculated automatically from the cd(cl) function.
+        # 1: find clOpt that minimizes cd(clOpt) / clOpt^1.5
+        # 2: vMinSink = sqrt(m * g / (0.5 * rho * clOpt))
+        pass
+
+    @abstractmethod
+    def flapSetting(self, cl: float) -> float:
+        '''Return flap setting for given cl'''
+        pass
+
 class SimJS3(SimGlider):
     def cd(self, cl: float) -> float:
         # 0 m/s = 524, 2 m/s = 3522
@@ -81,7 +94,6 @@ class SimJS3(SimGlider):
             if pair[0] <= cl:
                 break
 
-        #print(f'{cl} {leftNdx}')
         # Linear interpolation between measured points
         clLeft = _polarData[leftNdx][0]
         clRight = _polarData[leftNdx-1][0]
@@ -97,6 +109,24 @@ class SimJS3(SimGlider):
     def m(self) -> float:
         return 600.0
 
+    def v_minSink(self) -> float:
+        return 27.78 # 100 kph @ 600 kg
+
+    def flapSetting(self, cl: float) -> float:
+        # Table 4-4
+        if cl <= 0.308004349280696:
+            # 200 kph
+            return 1.0
+        if cl <= 0.628621469722968:
+            # 140 kph
+            return 2.0
+        if cl <= (0.855436921083842 + 0.729235784508286) / 2.0:
+            # 125 kph
+            return 3.0
+        if cl <= (1.23201739712278 + 1.01789924373309) / 2.0:
+            # 105 kph
+            return 4.0
+
 class SimNixus(SimGlider):
     def __init__(self):
         span = 18.0
@@ -111,6 +141,12 @@ class SimNixus(SimGlider):
 
     def m(self) -> float:
         return 500.0
+
+    def v_minSink(self) -> float:
+        return 25.0
+
+    def flapSetting(self, cl: float) -> float:
+        return 0.0
 
     # Valid for cl in [0.281, 1.33]
     def _cd0(self, cl):
